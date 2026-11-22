@@ -161,14 +161,14 @@ public sealed class MainViewModel : Observable, IDisposable
 
     private void RebuildTags()
     {
-        var selected = CatalogTag;
+        // Keep the "All tags" item in place: clearing the whole list would blank the menu's selection.
         var tags = Catalog.SelectMany(c => c.Entry.Tags).Select(t => t.Trim().ToLowerInvariant())
             .Where(t => t.Length > 0).Distinct().Order().ToList();
-        CatalogTags.Clear();
-        CatalogTags.Add(AllTags);
-        foreach (var t in tags) CatalogTags.Add(t);
-        _catalogTag = CatalogTags.Contains(selected) ? selected : AllTags;
-        Raise(nameof(CatalogTag));
+        if (!tags.Contains(CatalogTag)) CatalogTag = AllTags;
+        for (int i = CatalogTags.Count - 1; i >= 1; i--)
+            if (!tags.Contains(CatalogTags[i])) CatalogTags.RemoveAt(i);
+        for (int i = 0; i < tags.Count; i++)
+            if (CatalogTags.Count <= i + 1 || CatalogTags[i + 1] != tags[i]) CatalogTags.Insert(i + 1, tags[i]);
     }
 
     public RelayCommand RefreshCommand { get; }
@@ -205,6 +205,8 @@ public sealed class MainViewModel : Observable, IDisposable
     public string MelonText => _melon is { Installed: true } s ? $"MelonLoader {s.Version}" : "MelonLoader (not installed)";
     public bool BepInExInstalled => _bepInEx?.Installed == true;
     public bool MelonInstalled => _melon?.Installed == true;
+    public string BepInExVersionText => _bepInEx is { Installed: true } s ? s.Version ?? "" : "Not installed";
+    public string MelonVersionText => _melon is { Installed: true } s ? s.Version ?? "" : "Not installed";
     public string BepInExButtonText => BepInExInstalled ? "Update" : "Install";
     public string MelonButtonText => MelonInstalled ? "Update" : "Install";
     public bool IsVanillaActive => HasGame && _active is null;
@@ -240,6 +242,21 @@ public sealed class MainViewModel : Observable, IDisposable
     public string NexusStatus { get => _nexusStatus; private set => Set(ref _nexusStatus, value); }
 
     public string DownloadsFolder => DownloadWatcher.DownloadsFolder;
+
+    public bool IsThemeSystem { get => _settings.Theme is not ("Light" or "Dark"); set { if (value) SetTheme("System"); } }
+    public bool IsThemeLight { get => _settings.Theme == "Light"; set { if (value) SetTheme("Light"); } }
+    public bool IsThemeDark { get => _settings.Theme == "Dark"; set { if (value) SetTheme("Dark"); } }
+
+    private void SetTheme(string theme)
+    {
+        if (_settings.Theme == theme) return;
+        _settings.Theme = theme;
+        _settings.Save();
+        App.ApplyTheme(theme);
+        foreach (var p in new[] { nameof(IsThemeSystem), nameof(IsThemeLight), nameof(IsThemeDark) }) Raise(p);
+    }
+
+    public string ActiveLoaderText => !HasGame ? "" : _active is null ? "Mods off" : Names.Of(_active);
 
     public string StraysHint =>
         Mods.Any(m => m.IsStray)
@@ -325,7 +342,8 @@ public sealed class MainViewModel : Observable, IDisposable
             _active = null;
         }
         foreach (var p in new[] { nameof(BepInExText), nameof(MelonText), nameof(BepInExInstalled), nameof(MelonInstalled),
-                     nameof(BepInExButtonText), nameof(MelonButtonText),
+                     nameof(BepInExButtonText), nameof(MelonButtonText), nameof(ActiveLoaderText),
+                     nameof(BepInExVersionText), nameof(MelonVersionText),
                      nameof(IsVanillaActive), nameof(IsBepInExActive), nameof(IsMelonActive), nameof(LoaderHint), nameof(StraysHint) })
             Raise(p);
         RefreshModsView();

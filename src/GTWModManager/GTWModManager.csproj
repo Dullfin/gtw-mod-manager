@@ -8,8 +8,17 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>GTWModManager</AssemblyName>
     <Product>GTW Mod Manager</Product>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
+    <!-- WPF's Fluent theme (ThemeMode) is marked experimental in .NET 9. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- Icon for the .exe in Explorer and the taskbar. -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Icon for the window title bar. -->
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GTWModManager.Core\GTWModManager.Core.csproj" />

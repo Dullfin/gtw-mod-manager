@@ -13,6 +13,9 @@ public sealed class AppSettings
 
     public string? GameDir { get; set; }
 
+    /// <summary>"System", "Light" or "Dark".</summary>
+    public string Theme { get; set; } = "System";
+
     /// <summary>Raw URL of the community mods.json. Null means <see cref="DefaultIndexUrl"/>.</summary>
     public string? IndexUrl { get; set; }
 

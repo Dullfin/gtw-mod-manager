@@ -72,19 +72,31 @@ public sealed class CatalogRow(IndexEntry entry) : Observable
         : Entry.Repo is { } r ? "GitHub " + r : "Direct download";
     public string LoaderText => Entry.LoaderHint is { } l ? Names.Of(l) : "Loader detected on install";
 
+    public IReadOnlyList<string> TagList => Entry.Tags;
+    public bool IsInstalled => InstalledVersion is not null;
+
     private string? _installedVersion;
     public string? InstalledVersion
     {
         get => _installedVersion;
-        set { if (Set(ref _installedVersion, value)) { Raise(nameof(ActionText)); Raise(nameof(StatusText)); } }
+        set { if (Set(ref _installedVersion, value)) RaiseState(); }
     }
 
     private string? _latestVersion;
     public string? LatestVersion
     {
         get => _latestVersion;
-        set { if (Set(ref _latestVersion, value)) { Raise(nameof(ActionText)); Raise(nameof(StatusText)); } }
+        set { if (Set(ref _latestVersion, value)) RaiseState(); }
     }
+
+    private void RaiseState()
+    {
+        foreach (var p in new[] { nameof(ActionText), nameof(StatusText), nameof(BadgeText), nameof(HasUpdate), nameof(IsInstalled) }) Raise(p);
+    }
+
+    public string BadgeText => InstalledVersion is null ? "Not installed"
+        : HasUpdate ? $"Update: {InstalledVersion} → {LatestVersion}"
+        : $"Installed {InstalledVersion}";
 
     public bool HasUpdate => InstalledVersion is not null && LatestVersion is not null &&
                              !string.Equals(InstalledVersion.TrimStart('v'), LatestVersion.TrimStart('v'), StringComparison.OrdinalIgnoreCase);

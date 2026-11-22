@@ -49,11 +49,19 @@ Get-ChildItem $release -Filter *.exe | ForEach-Object { "$((Get-FileHash $_.Full
 Get-ChildItem $release | Format-Table Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } | Out-String | Write-Host
 
 if ($Publish) {
+    # git and gh write progress to stderr, which Windows PowerShell 5.1 would treat as a failure
+    # under 'Stop'; check exit codes instead.
+    $ErrorActionPreference = 'Continue'
     if (git -C $root status --porcelain) { throw 'Commit your changes before publishing a release.' }
     $tag = "v$version"
-    git -C $root tag -a $tag -m "GTW Mod Manager $version"
-    git -C $root push origin $tag
+    if (-not (git -C $root tag --list $tag)) {
+        git -C $root tag -a $tag -m "GTW Mod Manager $version" 2>&1 | Out-Host
+        if ($LASTEXITCODE) { throw "Couldn't create tag $tag" }
+    }
+    git -C $root push origin $tag 2>&1 | Out-Host
+    if ($LASTEXITCODE) { throw "Couldn't push tag $tag" }
     $notes = if ($NotesFile) { @('--notes-file', $NotesFile) } else { @('--generate-notes') }
     gh release create $tag --repo Dullfin/gtw-mod-manager --title "GTW Mod Manager $version" @notes `
-        (Join-Path $release $standalone) (Join-Path $release $framework) $sums
+        (Join-Path $release $standalone) (Join-Path $release $framework) $sums 2>&1 | Out-Host
+    if ($LASTEXITCODE) { throw "Couldn't create the GitHub release" }
 }

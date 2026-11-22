@@ -66,6 +66,8 @@ public sealed class CatalogRow(IndexEntry entry) : Observable
     public string Author => Entry.Author ?? "";
     public string Description => Entry.Description ?? "";
     public bool IsNexus => Entry.Nexus is not null;
+    public string Tags => string.Join(", ", Entry.Tags);
+    public bool HasTags => Entry.Tags.Count > 0;
     public string SourceText => Entry.Nexus is { } n ? $"Nexus Mods #{n.ModId}"
         : Entry.Repo is { } r ? "GitHub " + r : "Direct download";
     public string LoaderText => Entry.LoaderHint is { } l ? Names.Of(l) : "Loader detected on install";

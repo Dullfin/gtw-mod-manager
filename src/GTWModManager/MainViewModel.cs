@@ -1,5 +1,7 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Windows.Data;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -40,12 +42,134 @@ public sealed class MainViewModel : Observable, IDisposable
         RemoveNexusKeyCommand = new RelayCommand(_ => SaveNexusKeyAsync(null), _ => !IsBusy);
         OpenNexusKeysPageCommand = new RelayCommand(() => OpenUrl("https://www.nexusmods.com/settings/api-keys"));
 
+        ModsView = CollectionViewSource.GetDefaultView(Mods);
+        ModsView.Filter = o => MatchesMod((ModRow)o);
+        CatalogView = CollectionViewSource.GetDefaultView(Catalog);
+        CatalogView.Filter = o => MatchesCatalog((CatalogRow)o);
+
         SetGameDir(_settings.GameDir is { } dir && File.Exists(Path.Combine(dir, GamePaths.ExeName))
             ? GameLocator.RealCase(dir) : GameLocator.Find());
     }
 
     public ObservableCollection<ModRow> Mods { get; } = [];
     public ObservableCollection<CatalogRow> Catalog { get; } = [];
+
+    // ------------------------------------------------------------ search and filters
+
+    public ICollectionView ModsView { get; }
+    public ICollectionView CatalogView { get; }
+
+    private static readonly string[] ModFilterOptions =
+        ["All mods", "Enabled", "Disabled", "Active loader only", "BepInEx", "MelonLoader", "Needs attention"];
+
+    private static readonly string[] CatalogFilterOptions =
+        ["All mods", "Not installed", "Installed", "Updates available", "GitHub", "Nexus Mods", "BepInEx", "MelonLoader"];
+
+    public string[] ModFilters => ModFilterOptions;
+    public string[] CatalogFilters => CatalogFilterOptions;
+
+    public const string AllTags = "All tags";
+    public ObservableCollection<string> CatalogTags { get; } = [AllTags];
+
+    private string _modSearch = "";
+    public string ModSearch { get => _modSearch; set { if (Set(ref _modSearch, value)) RefreshModsView(); } }
+
+    private string _modFilter = ModFilterOptions[0];
+    public string ModFilter { get => _modFilter; set { if (Set(ref _modFilter, value)) RefreshModsView(); } }
+
+    private string _catalogSearch = "";
+    public string CatalogSearch { get => _catalogSearch; set { if (Set(ref _catalogSearch, value)) RefreshCatalogView(); } }
+
+    private string _catalogFilter = CatalogFilterOptions[0];
+    public string CatalogFilter { get => _catalogFilter; set { if (Set(ref _catalogFilter, value)) RefreshCatalogView(); } }
+
+    private string _catalogTag = AllTags;
+    public string CatalogTag { get => _catalogTag; set { if (Set(ref _catalogTag, value ?? AllTags)) RefreshCatalogView(); } }
+
+    public bool ModSearchIsEmpty => ModSearch.Length == 0;
+    public bool CatalogSearchIsEmpty => CatalogSearch.Length == 0;
+
+    private int _modsShown;
+    private int _catalogShown;
+    public string ModCountText => CountText(_modsShown, Mods.Count);
+    public string CatalogCountText => CountText(_catalogShown, Catalog.Count);
+    public bool NoModsMatch => _modsShown == 0 && Mods.Count > 0;
+    public bool NoCatalogMatch => _catalogShown == 0 && Catalog.Count > 0;
+
+    public RelayCommand ClearModFiltersCommand => new(() => { ModSearch = ""; ModFilter = ModFilterOptions[0]; });
+    public RelayCommand ClearCatalogFiltersCommand => new(() => { CatalogSearch = ""; CatalogFilter = CatalogFilterOptions[0]; CatalogTag = AllTags; });
+
+    private static string CountText(int shown, int total) =>
+        shown == total ? $"{total} mod{(total == 1 ? "" : "s")}" : $"Showing {shown} of {total}";
+
+    /// <summary>Every word typed must appear somewhere in the row's text.</summary>
+    private static bool MatchesSearch(string search, params string?[] fields)
+    {
+        var terms = search.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0) return true;
+        var haystack = string.Join(' ', fields.Where(f => !string.IsNullOrEmpty(f)));
+        return terms.All(t => haystack.Contains(t, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool MatchesMod(ModRow row)
+    {
+        bool filter = ModFilter switch
+        {
+            "Enabled" => row.IsEnabled,
+            "Disabled" => !row.IsEnabled,
+            "Active loader only" => row.IsLoaderActive,
+            "BepInEx" => row.Info.Loader == ModLoader.BepInEx,
+            "MelonLoader" => row.Info.Loader == ModLoader.MelonLoader,
+            "Needs attention" => row.IsStray || row.Info.IsMissing,
+            _ => true,
+        };
+        return filter && MatchesSearch(ModSearch, row.Name, row.Version, row.Guids, row.Info.Author,
+            row.LoaderText, row.KindText, row.Location);
+    }
+
+    private bool MatchesCatalog(CatalogRow row)
+    {
+        bool filter = CatalogFilter switch
+        {
+            "Not installed" => row.InstalledVersion is null,
+            "Installed" => row.InstalledVersion is not null,
+            "Updates available" => row.HasUpdate,
+            "GitHub" => row.Entry.Repo is not null,
+            "Nexus Mods" => row.IsNexus,
+            "BepInEx" => row.Entry.LoaderHint == ModLoader.BepInEx,
+            "MelonLoader" => row.Entry.LoaderHint == ModLoader.MelonLoader,
+            _ => true,
+        };
+        bool tag = CatalogTag == AllTags || row.Entry.Tags.Contains(CatalogTag, StringComparer.OrdinalIgnoreCase);
+        return filter && tag && MatchesSearch(CatalogSearch, row.Name, row.Author, row.Description,
+            row.Tags, row.SourceText, row.LoaderText);
+    }
+
+    private void RefreshModsView()
+    {
+        ModsView.Refresh();
+        _modsShown = ModsView.Cast<object>().Count();
+        foreach (var p in new[] { nameof(ModCountText), nameof(NoModsMatch), nameof(ModSearchIsEmpty) }) Raise(p);
+    }
+
+    private void RefreshCatalogView()
+    {
+        CatalogView.Refresh();
+        _catalogShown = CatalogView.Cast<object>().Count();
+        foreach (var p in new[] { nameof(CatalogCountText), nameof(NoCatalogMatch), nameof(CatalogSearchIsEmpty) }) Raise(p);
+    }
+
+    private void RebuildTags()
+    {
+        var selected = CatalogTag;
+        var tags = Catalog.SelectMany(c => c.Entry.Tags).Select(t => t.Trim().ToLowerInvariant())
+            .Where(t => t.Length > 0).Distinct().Order().ToList();
+        CatalogTags.Clear();
+        CatalogTags.Add(AllTags);
+        foreach (var t in tags) CatalogTags.Add(t);
+        _catalogTag = CatalogTags.Contains(selected) ? selected : AllTags;
+        Raise(nameof(CatalogTag));
+    }
 
     public RelayCommand RefreshCommand { get; }
     public RelayCommand BrowseGameCommand { get; }
@@ -181,6 +305,7 @@ public sealed class MainViewModel : Observable, IDisposable
         Catalog.Clear();
         foreach (var entry in _index.Mods.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase))
             Catalog.Add(new CatalogRow(entry) { LatestVersion = latest.GetValueOrDefault(entry.Id) });
+        RebuildTags();
         UpdateInstalledVersions();
     }
 
@@ -203,6 +328,7 @@ public sealed class MainViewModel : Observable, IDisposable
                      nameof(BepInExButtonText), nameof(MelonButtonText),
                      nameof(IsVanillaActive), nameof(IsBepInExActive), nameof(IsMelonActive), nameof(LoaderHint), nameof(StraysHint) })
             Raise(p);
+        RefreshModsView();
         UpdateInstalledVersions();
     }
 
@@ -213,6 +339,7 @@ public sealed class MainViewModel : Observable, IDisposable
             var installed = _service?.Registry.Find(row.Entry.Id);
             row.InstalledVersion = installed is null ? null : installed.Version ?? "?";
         }
+        RefreshCatalogView();
     }
 
     private async Task CheckLatestVersionsAsync()
@@ -238,6 +365,7 @@ public sealed class MainViewModel : Observable, IDisposable
                 failed++;
             }
         }
+        RefreshCatalogView();
         var updates = Catalog.Count(c => c.HasUpdate);
         Status = (updates == 0 ? "Everything is up to date." : $"{updates} update(s) available.") +
                  (failed > 0 ? $" {failed} mod(s) couldn't be checked." : "") +
@@ -444,6 +572,7 @@ public sealed class MainViewModel : Observable, IDisposable
             {
                 Status = $"Installed {mod.Name} {mod.Version} ({Names.Of(mod.Loader)}).";
                 if (Catalog.FirstOrDefault(c => c.Entry.Id == entry.Id) is { } row && version is not null) row.LatestVersion = version;
+                RefreshCatalogView();
             }
             return mod;
         }

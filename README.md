@@ -18,6 +18,7 @@ A Windows mod manager for **Get To Work** (Unity Mono). Supports both **BepInEx 
   - **Nexus Mods:** Get To Work mods on Nexus only offer "Manual download", so Install opens the mod's Files page in your browser and installs the file as soon as it lands in your Downloads folder ("Choose file instead…" works too). With a **Nexus Premium** API key (Settings tab), downloads go straight into the game. Any API key also enables Nexus version checks. The key is stored encrypted with Windows DPAPI.
 - **Safe removal:** removed mods go to `GTWModManager\trash\` in the game folder. Settings (`BepInEx\config\`, `UserData\`) are kept across removals and updates.
 - Refuses to change anything while the game is running.
+- **Updates itself:** at startup it checks the latest GitHub release of this repo. If there's a newer version, a banner offers *Update now*: the app downloads the matching exe (standalone or .NET 9), checks it against `SHA256SUMS.txt`, renames itself to `*.old`, moves the new exe into place and restarts. The next start deletes the `.old` copy. *Skip this version* hides the banner for that version, and Settings → About can check by hand. This only works while the repo is **public**; for a private repo GitHub returns nothing and the app stays quiet.
 
 The manager records what it installed in `GTWModManager\installed.json` in the game folder. Version 0.1's `BepInEx\modmanager\` folder is moved there automatically.
 
@@ -31,11 +32,20 @@ dotnet build GTWModManager.sln -c Release
 .\src\GTWModManager\bin\Release\net9.0-windows\GTWModManager.exe
 ```
 
-Single-file exe to share with players (they need the .NET 9 Desktop Runtime, or add `--self-contained` for a larger exe that doesn't):
+## Releasing
+
+The built-in updater looks for exact file names, so always build releases with the script:
+
+1. Bump `<Version>` in `src/GTWModManager/GTWModManager.csproj` and commit.
+2. Build and publish (tags `v<version>`, pushes the tag, creates the GitHub release with both exes and `SHA256SUMS.txt`):
 
 ```powershell
-dotnet publish src/GTWModManager -c Release -r win-x64 -p:PublishSingleFile=true --self-contained false -o publish
+.\tools\build-release.ps1 -Publish -NotesFile notes.md
 ```
+
+Without `-Publish` it only builds into `publish\release`. Everyone on an older version then sees the update banner the next time they start the app.
+
+To test an update locally, serve a fake `latest.json` (same shape as GitHub's release API) and start the app with `GTWMM_UPDATE_URL` pointing at it.
 
 Smoke tests (use a throwaway folder; `--online` also downloads the GitHub mods and MelonLoader):
 
@@ -62,3 +72,4 @@ A personal API key is fine for your own use. If you distribute the app widely, N
 | `tests/GTWModManager.SmokeTest` | End-to-end checks against a fake game folder |
 | `tests/FakeMelonMod` | A stand-in MelonLoader mod used by the tests |
 | `index/mods.json` | Built-in fallback copy of the community list |
+| `tools/build-release.ps1` | Builds the release exes with the names the updater expects, and publishes the release |

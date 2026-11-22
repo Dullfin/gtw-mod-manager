@@ -16,6 +16,9 @@ public sealed class AppSettings
     /// <summary>"System", "Light" or "Dark".</summary>
     public string Theme { get; set; } = "System";
 
+    /// <summary>An app version the user chose to skip; no banner is shown for it.</summary>
+    public string? SkippedAppVersion { get; set; }
+
     /// <summary>Raw URL of the community mods.json. Null means <see cref="DefaultIndexUrl"/>.</summary>
     public string? IndexUrl { get; set; }
 

@@ -54,6 +54,114 @@ public sealed class MainViewModel : Observable, IDisposable
     public ObservableCollection<ModRow> Mods { get; } = [];
     public ObservableCollection<CatalogRow> Catalog { get; } = [];
 
+    // ------------------------------------------------------------ app updates
+
+    private readonly UpdateService _updater = new();
+    private AppRelease? _availableUpdate;
+
+    public string CurrentVersionText =>
+        $"Version {UpdateService.CurrentVersion.ToString(3)} ({(UpdateService.IsSelfContained ? "standalone" : "needs .NET 9")})";
+
+    private bool _updateAvailable;
+    public bool UpdateAvailable { get => _updateAvailable; private set => Set(ref _updateAvailable, value); }
+
+    private string _updateBannerText = "";
+    public string UpdateBannerText { get => _updateBannerText; private set => Set(ref _updateBannerText, value); }
+
+    private string _appUpdateStatus = "";
+    public string AppUpdateStatus { get => _appUpdateStatus; private set => Set(ref _appUpdateStatus, value); }
+
+    public RelayCommand UpdateNowCommand => new(_ => RunAsync("Updating GTW Mod Manager", UpdateNowAsync), _ => _availableUpdate is not null && !IsBusy);
+    public RelayCommand SkipUpdateCommand => new(SkipUpdate);
+    public RelayCommand DismissUpdateCommand => new(() => UpdateAvailable = false);
+    public RelayCommand OpenUpdatePageCommand => new(() => OpenUrl(_availableUpdate?.PageUrl ?? UpdateService.ReleasesPage));
+    public RelayCommand OpenReleasesPageCommand => new(() => OpenUrl(UpdateService.ReleasesPage));
+    public RelayCommand CheckAppUpdateCommand => new(_ => CheckForAppUpdateAsync(manual: true), _ => !IsBusy);
+
+    /// <param name="manual">From the Settings button: reports every outcome and ignores "skip this version".</param>
+    private async Task CheckForAppUpdateAsync(bool manual)
+    {
+        var current = UpdateService.CurrentVersion;
+        if (manual) AppUpdateStatus = "Checking for updates...";
+        try
+        {
+            var latest = await _updater.GetLatestAsync();
+            if (latest is null)
+            {
+                AppUpdateStatus = "No published release found. If the GitHub repository is private, updates can't be checked.";
+                return;
+            }
+            if (!UpdateService.IsNewer(latest, current))
+            {
+                _availableUpdate = null;
+                UpdateAvailable = false;
+                AppUpdateStatus = $"You're up to date. {latest.Version.ToString(3)} is the latest version.";
+                return;
+            }
+
+            _availableUpdate = latest;
+            AppUpdateStatus = $"Version {latest.Version.ToString(3)} is available.";
+            if (!manual && _settings.SkippedAppVersion == latest.Version.ToString(3)) return;
+            UpdateBannerText = $"GTW Mod Manager {latest.Version.ToString(3)} is available. You have {current.ToString(3)}.";
+            UpdateAvailable = true;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            AppUpdateStatus = "Couldn't check for updates: " + e.Message;
+        }
+    }
+
+    private void SkipUpdate()
+    {
+        if (_availableUpdate is null) return;
+        _settings.SkippedAppVersion = _availableUpdate.Version.ToString(3);
+        _settings.Save();
+        UpdateAvailable = false;
+        Status = $"Skipped version {_settings.SkippedAppVersion}. You can still update from Settings.";
+    }
+
+    private async Task UpdateNowAsync()
+    {
+        var release = _availableUpdate!;
+        if (!UpdateService.CanSelfUpdate)
+        {
+            OpenUrl(release.PageUrl);
+            Status = "This copy can't replace itself (it isn't a published single-file build), so the download page was opened.";
+            return;
+        }
+
+        var exe = Environment.ProcessPath!;
+        Status = $"Downloading GTW Mod Manager {release.Version.ToString(3)}...";
+        string downloaded;
+        try
+        {
+            downloaded = await _updater.DownloadAsync(release, exe, new Progress<double>(p => Progress = p * 100));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            OpenUrl(release.PageUrl);
+            throw new InvalidOperationException($"Can't write to {Path.GetDirectoryName(exe)}. The download page has been opened instead; replace the exe by hand.");
+        }
+
+        UpdateService.SwapExecutable(exe, downloaded);
+        var psi = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! };
+        psi.ArgumentList.Add(UpdateService.UpdatedFromArg);
+        psi.ArgumentList.Add(UpdateService.CurrentVersion.ToString(3));
+        Process.Start(psi);
+        Application.Current.Shutdown();
+    }
+
+    /// <summary>After an update: remove the old exe and say so.</summary>
+    private async Task FinishUpdateAsync()
+    {
+        if (!UpdateService.CanSelfUpdate) return;
+        var args = Environment.GetCommandLineArgs();
+        var i = Array.IndexOf(args, UpdateService.UpdatedFromArg);
+        if (i >= 0 && i + 1 < args.Length)
+            Status = $"Updated from {args[i + 1]} to {UpdateService.CurrentVersion.ToString(3)}.";
+        await UpdateService.CleanupAfterUpdateAsync(Environment.ProcessPath!);
+    }
+
     // ------------------------------------------------------------ search and filters
 
     public ICollectionView ModsView { get; }
@@ -271,7 +379,9 @@ public sealed class MainViewModel : Observable, IDisposable
     public async Task InitializeAsync()
     {
         await RunAsync("Loading", RefreshAllAsync);
+        await FinishUpdateAsync();
         await RefreshNexusUserAsync();
+        await CheckForAppUpdateAsync(manual: false);
     }
 
     private void SetGameDir(string? dir)
@@ -792,5 +902,6 @@ public sealed class MainViewModel : Observable, IDisposable
     {
         _watchCts?.Cancel();
         _catalog.Dispose();
+        _updater.Dispose();
     }
 }

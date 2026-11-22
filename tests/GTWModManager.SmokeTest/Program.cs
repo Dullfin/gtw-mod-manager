@@ -198,6 +198,37 @@ using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
     Check(Path.GetFileName(got) == "Mod-2.0.zip", "Downloads watcher picks up the finished file only: " + Path.GetFileName(got));
 }
 
+// ---- app self-update (no network) ---------------------------------------------------------------
+Check(UpdateService.TryParseVersion("v0.4.0", out var v040) && v040 == new Version(0, 4, 0), "update: parses tag v0.4.0");
+Check(UpdateService.TryParseVersion("1.2", out var v12) && v12 == new Version(1, 2, 0), "update: parses tag 1.2 as 1.2.0");
+Check(!UpdateService.TryParseVersion("latest", out _), "update: rejects non-version tags");
+var rel040 = new AppRelease(new Version(0, 4, 0), "v0.4.0", "", "", "", null, null);
+Check(UpdateService.IsNewer(rel040, new Version(0, 3, 0)) && !UpdateService.IsNewer(rel040, new Version(0, 4, 0)), "update: version comparison");
+var releaseAssets = new List<AppReleaseAsset>
+{
+    new("SHA256SUMS.txt", "u", 1),
+    new("GTWModManager-0.4.0-win-x64-needs-dotnet9.exe", "u", 1),
+    new("GTWModManager-0.4.0-win-x64.exe", "u", 1),
+};
+Check(UpdateService.PickExe(releaseAssets, selfContained: true)?.Name == "GTWModManager-0.4.0-win-x64.exe", "update: standalone build picks the standalone exe");
+Check(UpdateService.PickExe(releaseAssets, selfContained: false)?.Name == "GTWModManager-0.4.0-win-x64-needs-dotnet9.exe", "update: .NET 9 build picks the small exe");
+
+var updDir = Path.Combine(work, "selfupdate");
+Directory.CreateDirectory(updDir);
+var fakeExe = Path.Combine(updDir, "GTWModManager.exe");
+File.WriteAllText(fakeExe, "old version");
+var fakeNew = fakeExe + ".update";
+File.WriteAllText(fakeNew, "new version");
+var newHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(fakeNew))).ToLowerInvariant();
+UpdateService.VerifyChecksum(fakeNew, $"{newHash}  GTWModManager-0.4.0-win-x64.exe\nabc  other.exe\n", "GTWModManager-0.4.0-win-x64.exe");
+Check(true, "update: checksum accepted");
+Throws<InvalidDataException>(() => UpdateService.VerifyChecksum(fakeNew, $"{new string('0', 64)}  GTWModManager-0.4.0-win-x64.exe", "GTWModManager-0.4.0-win-x64.exe"), "update: wrong checksum rejected");
+Throws<InvalidDataException>(() => UpdateService.VerifyChecksum(fakeNew, "abc  other.exe", "GTWModManager-0.4.0-win-x64.exe"), "update: missing checksum entry rejected");
+UpdateService.SwapExecutable(fakeExe, fakeNew);
+Check(File.ReadAllText(fakeExe) == "new version" && File.ReadAllText(fakeExe + ".old") == "old version" && !File.Exists(fakeNew), "update: swap puts the new exe in place and keeps the old one");
+await UpdateService.CleanupAfterUpdateAsync(fakeExe);
+Check(!File.Exists(fakeExe + ".old"), "update: cleanup removes the old exe");
+
 // ---- real game folder: read-only scan -----------------------------------------------------------
 var real = new ModService(new GamePaths(realGame)) { CheckGameRunning = false };
 Console.WriteLine("\nReal game folder scan (read-only):");

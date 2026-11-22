@@ -8,6 +8,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -48,8 +49,38 @@
             </StackPanel>
         </Grid>
 
+        <!-- ===================== New version of the app ===================== -->
+        <Border Grid.Row="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,14"
+                Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Padding="8,6" ToolTip="Hide until next time"
+                        Command="{Binding DismissUpdateCommand}">
+                    <TextBlock Text="&#xE711;" Style="{StaticResource Icon}" FontSize="12" />
+                </Button>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Skip this version" Style="{StaticResource ToolButton}" Command="{Binding SkipUpdateCommand}" />
+                    <Button Content="What's new" Style="{StaticResource ToolButton}" Command="{Binding OpenUpdatePageCommand}" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding UpdateNowCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE896;" Style="{StaticResource Icon}" Margin="0,0,8,0" />
+                            <TextBlock Text="Update now" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Left" Text="&#xE895;" Style="{StaticResource Icon}" FontSize="18"
+                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,12,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding UpdateBannerText}" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="The app downloads the new version, swaps itself out and restarts. Your mods and settings stay as they are."
+                               Style="{StaticResource Caption}" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <!-- ===================== Mod loader ===================== -->
-        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,14">
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,0,0,14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -113,7 +144,7 @@
         </Border>
 
         <!-- ===================== Tabs ===================== -->
-        <TabControl x:Name="MainTabs" Grid.Row="2" ItemContainerStyle="{StaticResource NavTab}">
+        <TabControl x:Name="MainTabs" Grid.Row="3" ItemContainerStyle="{StaticResource NavTab}">
 
             <!-- Installed -->
             <TabItem AutomationProperties.Name="Installed">
@@ -467,13 +498,38 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE946;" Style="{StaticResource Icon}" Margin="0,0,10,0" />
+                                    <TextBlock Text="About" Style="{StaticResource SectionText}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding CurrentVersionText}" Style="{StaticResource Hint}" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding AppUpdateStatus}" Style="{StaticResource Hint}" Margin="0,2,0,8" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource ToolButton}" Margin="0" Command="{Binding CheckAppUpdateCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE895;" Style="{StaticResource Icon}" Margin="0,0,8,0" />
+                                            <TextBlock Text="Check for updates" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource ToolButton}" Command="{Binding OpenReleasesPageCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" Margin="0,0,8,0" />
+                                            <TextBlock Text="All releases" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
 
         <!-- ===================== Waiting for a browser download ===================== -->
-        <Border Grid.Row="3" CornerRadius="8" Padding="14,10" Margin="0,12,0,0"
+        <Border Grid.Row="4" CornerRadius="8" Padding="14,10" Margin="0,12,0,0"
                 Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                 Visibility="{Binding IsWaitingForDownload, Converter={StaticResource BoolToVis}}">
@@ -490,7 +546,7 @@
         </Border>
 
         <!-- ===================== Status bar ===================== -->
-        <Grid Grid.Row="4" Margin="2,10,0,0">
+        <Grid Grid.Row="5" Margin="2,10,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

@@ -167,7 +167,47 @@ var sevenZip = Path.Combine(work, "seven.7z");
 var tar = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "tar.exe"), $"--format 7zip -cf \"{sevenZip}\" SevenMod") { WorkingDirectory = stage, UseShellExecute = false })!;
 tar.WaitForExit();
 var seven = svc.InstallFromFile(sevenZip, new InstallRequest("test.seven", "Seven"));
-Check(seven.Loader == ModLoader.BepInEx && File.Exists(Path.Combine(paths.PluginsDir, "test.seven", "SevenMod.dll")), ".7z extracted and installed: " + string.Join(",", seven.Items));
+Check(seven.Loader == ModLoader.BepInEx && File.Exists(Path.Combine(paths.PluginsDir, "SevenMod.dll")) && seven.Items.SequenceEqual(["plugins/SevenMod.dll"]),
+      ".7z extracted and installed directly into plugins: " + string.Join(",", seven.Items));
+
+// ---- plain-DLL downloads go straight into plugins; downloads with assets keep a folder ------------
+var plainDll = Path.Combine(work, "Plain.dll");
+File.Copy(practiceDll, plainDll);
+var plain = svc.InstallFromFile(plainDll, new InstallRequest("test.plain", "Plain"));
+Check(plain.Items.SequenceEqual(["plugins/Plain.dll"]) && File.Exists(Path.Combine(paths.PluginsDir, "Plain.dll")), "single .dll download goes directly into plugins");
+var dllsZip = MakeZip("dlls.zip", ("Two-1.0/README.md", "docs"), ("Two-1.0/LICENSE", "mit"));
+AddFile(dllsZip, practiceDll, "Two-1.0/TwoMain.dll");
+AddFile(dllsZip, practiceDll, "Two-1.0/TwoHelper.dll");
+var two = svc.InstallFromFile(dllsZip, new InstallRequest("test.two", "Two"));
+Check(two.Items.OrderBy(i => i).SequenceEqual(["plugins/TwoHelper.dll", "plugins/TwoMain.dll"]) && !File.Exists(Path.Combine(paths.PluginsDir, "README.md")),
+      "zip of DLLs + readme: DLLs directly in plugins, docs skipped: " + string.Join(",", two.Items));
+var assetsZip = MakeZip("assets.zip", ("Art/README.md", "docs"), ("Art/sprites/hat.png", "png"));
+AddFile(assetsZip, practiceDll, "Art/Art.dll");
+var art = svc.InstallFromFile(assetsZip, new InstallRequest("test.art", "Art"));
+Check(art.Items.SequenceEqual(["plugins/test.art"]) && File.Exists(Path.Combine(paths.PluginsDir, "test.art", "sprites", "hat.png")),
+      "zip with asset files keeps its own folder: " + string.Join(",", art.Items));
+svc.SetEnabled(svc.Scan().Single(m => m.Id == "test.two"), false);
+Check(File.Exists(Path.Combine(paths.DisabledPluginsDir, "TwoMain.dll")) && File.Exists(Path.Combine(paths.DisabledPluginsDir, "TwoHelper.dll")), "disabling a multi-DLL mod moves all its DLLs");
+
+// ---- moving installs made by older versions out of their folders ---------------------------------
+Directory.CreateDirectory(Path.Combine(paths.PluginsDir, "old.mod"));
+File.Copy(practiceDll, Path.Combine(paths.PluginsDir, "old.mod", "OldMod.dll"));
+File.WriteAllText(Path.Combine(paths.PluginsDir, "old.mod", "README.md"), "docs");
+Directory.CreateDirectory(Path.Combine(paths.DisabledPluginsDir, "old.off"));
+File.Copy(practiceDll, Path.Combine(paths.DisabledPluginsDir, "old.off", "OldOff.dll"));
+Directory.CreateDirectory(Path.Combine(paths.PluginsDir, "old.clash"));
+File.Copy(practiceDll, Path.Combine(paths.PluginsDir, "old.clash", "Plain.dll")); // Plain.dll is already in plugins
+svc.Registry.Mods.Add(new InstalledMod { Id = "old.mod", Name = "Old Mod", Items = ["plugins/old.mod"] });
+svc.Registry.Mods.Add(new InstalledMod { Id = "old.off", Name = "Old Off", Items = ["plugins/old.off"] });
+svc.Registry.Mods.Add(new InstalledMod { Id = "old.clash", Name = "Old Clash", Items = ["plugins/old.clash"] });
+svc.Registry.Save();
+var flat = svc.FlattenFolderInstalls();
+Check(flat.Moved.OrderBy(n => n).SequenceEqual(["Old Mod", "Old Off"]), "flatten: moves old folder installs: " + string.Join(", ", flat.Moved));
+Check(File.Exists(Path.Combine(paths.PluginsDir, "OldMod.dll")) && !Directory.Exists(Path.Combine(paths.PluginsDir, "old.mod")), "flatten: enabled mod's DLL now directly in plugins, folder gone");
+Check(File.Exists(Path.Combine(paths.DisabledPluginsDir, "OldOff.dll")) && svc.Scan().Single(m => m.Id == "old.off") is { IsEnabled: false, IsMissing: false }, "flatten: disabled mod stays disabled");
+Check(svc.Registry.Find("old.mod")!.Items.SequenceEqual(["plugins/OldMod.dll"]), "flatten: registry updated");
+Check(flat.Skipped.Count == 1 && flat.Skipped[0].Contains("Plain.dll") && Directory.Exists(Path.Combine(paths.PluginsDir, "old.clash")), "flatten: skips a mod whose DLL would overwrite another file");
+Check(svc.Registry.Find("test.art")!.Items.SequenceEqual(["plugins/test.art"]) && Directory.Exists(Path.Combine(paths.PluginsDir, "test.art")), "flatten: leaves mods with asset files in their folder");
 
 // ---- Nexus file picking (no network) ---------------------------------------------------------
 var nexusFiles = new List<NexusFile>

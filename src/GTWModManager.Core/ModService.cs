@@ -363,6 +363,75 @@ public sealed class ModService
         return mod;
     }
 
+    // ---------------------------------------------------------------- layout migration
+
+    public sealed record FlattenResult(List<string> Moved, List<string> Skipped);
+
+    /// <summary>
+    /// Earlier versions put single-DLL BepInEx mods in their own folder (plugins/&lt;Mod&gt;/Mod.dll).
+    /// Moves those DLLs directly into plugins/ (or plugins_disabled/), like a fresh install now does.
+    /// Only touches mods this manager installed whose folder holds nothing but DLLs and docs,
+    /// and never overwrites a file that's already there.
+    /// </summary>
+    public FlattenResult FlattenFolderInstalls()
+    {
+        var result = new FlattenResult([], []);
+        Registry.Load();
+        bool changed = false;
+
+        foreach (var mod in Registry.Mods.Where(m => m.Loader == ModLoader.BepInEx))
+        {
+            var newItems = new List<string>();
+            bool modChanged = false;
+            foreach (var item in mod.Items)
+            {
+                var parts = item.Split('/');
+                var disabled = Directory.Exists(Paths.ResolveItem(mod.Loader, item, true)) && !Directory.Exists(Paths.ResolveItem(mod.Loader, item, false));
+                var folder = Paths.ResolveItem(mod.Loader, item, disabled);
+                if (parts.Length != 2 || !Directory.Exists(folder)
+                    || Directory.EnumerateDirectories(folder).Any()
+                    || Directory.EnumerateFiles(folder).Any(f => !f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) && !ArchiveInstaller.IsDocFile(f)))
+                {
+                    newItems.Add(item);
+                    continue;
+                }
+
+                var dlls = Directory.EnumerateFiles(folder, "*.dll").ToList();
+                var targets = dlls.Select(d => (From: d, Item: $"{parts[0]}/{Path.GetFileName(d)}")).ToList();
+                var clash = targets.FirstOrDefault(t => PathExists(Paths.ResolveItem(mod.Loader, t.Item, false)) || PathExists(Paths.ResolveItem(mod.Loader, t.Item, true)));
+                if (dlls.Count == 0 || clash.From is not null)
+                {
+                    if (clash.From is not null)
+                        result.Skipped.Add($"{mod.Name}: {Path.GetFileName(clash.From)} is already in {parts[0]}{(disabled ? GamePaths.DisabledSuffix : "")}");
+                    newItems.Add(item);
+                    continue;
+                }
+
+                EnsureGameNotRunning();
+                foreach (var (from, target) in targets)
+                    MovePath(from, Paths.ResolveItem(mod.Loader, target, disabled));
+                var leftovers = Directory.EnumerateFiles(folder).ToList();
+                if (leftovers.Count > 0)
+                {
+                    var trash = NewTrashDir(mod.Name + " docs");
+                    foreach (var f in leftovers) MoveToTrash(f, trash, Path.GetFileName(f));
+                }
+                Directory.Delete(folder);
+                newItems.AddRange(targets.Select(t => t.Item));
+                modChanged = true;
+            }
+            if (modChanged)
+            {
+                mod.Items = newItems;
+                result.Moved.Add(mod.Name);
+                changed = true;
+            }
+        }
+
+        if (changed) Registry.Save();
+        return result;
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static bool PathExists(string path) => File.Exists(path) || Directory.Exists(path);

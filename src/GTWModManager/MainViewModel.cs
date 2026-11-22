@@ -23,7 +23,7 @@ public sealed class MainViewModel : Observable, IDisposable
     public MainViewModel()
     {
         _indexUrl = _settings.EffectiveIndexUrl;
-        RefreshCommand = new RelayCommand(_ => RunAsync("Refreshing", RefreshAllAsync), _ => !IsBusy);
+        RefreshCommand = new RelayCommand(_ => RunAsync("Refreshing", async () => { await RefreshAllAsync(); FlattenOldInstalls(); }), _ => !IsBusy);
         BrowseGameCommand = new RelayCommand(BrowseGame, () => !IsBusy);
         InstallFileCommand = new RelayCommand(InstallFileDialog, () => HasGame && !IsBusy);
         InstallLoaderCommand = new RelayCommand(p => RunAsync("Installing mod loader", () => InstallLoaderAndOfferSwitchAsync(ParseLoader(p)!.Value)), _ => HasGame && !IsBusy);
@@ -149,6 +149,28 @@ public sealed class MainViewModel : Observable, IDisposable
         psi.ArgumentList.Add(UpdateService.CurrentVersion.ToString(3));
         Process.Start(psi);
         Application.Current.Shutdown();
+    }
+
+    /// <summary>Moves single-DLL mods that older versions put in their own folder straight into plugins.</summary>
+    private void FlattenOldInstalls()
+    {
+        if (_service is null || ModService.IsGameRunning()) return;
+        try
+        {
+            var result = _service.FlattenFolderInstalls();
+            if (result.Moved.Count > 0)
+            {
+                RefreshInstalled();
+                Status = $"Moved {string.Join(", ", result.Moved)} directly into the plugins folder.";
+            }
+            if (result.Skipped.Count > 0)
+                Status = (result.Moved.Count > 0 ? Status + " " : "") +
+                         "Left in their own folder: " + string.Join("; ", result.Skipped) + ". Remove the other copy and click Refresh to move them.";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Status = "Couldn't move older installs into plugins: " + e.Message;
+        }
     }
 
     /// <summary>After an update: remove the old exe and say so.</summary>
@@ -379,6 +401,7 @@ public sealed class MainViewModel : Observable, IDisposable
     public async Task InitializeAsync()
     {
         await RunAsync("Loading", RefreshAllAsync);
+        FlattenOldInstalls();
         await FinishUpdateAsync();
         await RefreshNexusUserAsync();
         await CheckForAppUpdateAsync(manual: false);

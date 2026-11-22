@@ -189,6 +189,10 @@ public static class ArchiveInstaller
         bool hasRootFolders = entries.Any(e => First(e.Path) is var f &&
             (f.Equals("plugins", StringComparison.OrdinalIgnoreCase) || f.Equals("patchers", StringComparison.OrdinalIgnoreCase) || f.Equals("config", StringComparison.OrdinalIgnoreCase)));
 
+        // A download that is just DLLs (plus a readme or licence) goes straight into plugins/.
+        // Anything else keeps a folder, because mods load their asset files from beside their DLL.
+        bool onlyDlls = entries.Where(e => !IsDocFile(e.Path)).All(e => IsDll(e.Path));
+
         foreach (var (file, path) in entries)
         {
             string? rel;
@@ -197,7 +201,9 @@ public static class ArchiveInstaller
             else if (hasRootFolders)
                 // Thunderstore-style packages can mix root DLLs with a config/ folder.
                 rel = path.Contains('/') ? path
-                    : path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? $"plugins/{safe}/{path}" : null;
+                    : IsDll(path) ? $"plugins/{path}" : null;
+            else if (onlyDlls)
+                rel = IsDll(path) ? $"plugins/{Path.GetFileName(path)}" : null;
             else
                 rel = $"plugins/{safe}/{path}";
             yield return (file, rel);
@@ -231,6 +237,18 @@ public static class ArchiveInstaller
     }
 
     private static string First(string path) => path.Split('/')[0];
+
+    private static bool IsDll(string path) => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Readmes, licences and package metadata that a mod doesn't need at runtime.</summary>
+    public static bool IsDocFile(string path)
+    {
+        var name = Path.GetFileName(path).ToLowerInvariant();
+        var ext = Path.GetExtension(name);
+        return ext is ".md" or ".txt" or ".pdf" or ".url"
+               || name.StartsWith("readme") || name.StartsWith("license") || name.StartsWith("licence")
+               || name.StartsWith("changelog") || name is "manifest.json" or "icon.png";
+    }
 
     public static string SafeName(string name)
     {

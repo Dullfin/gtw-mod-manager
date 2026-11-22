@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "mods": [
+    {
+      "id": "mxous.PodcastRandomizer",
+      "name": "Podcast Randomizer",
+      "author": "mxous",
+      "description": "Shuffles podcast locations within their original areas. Reloading re-rolls any podcasts you haven't collected yet.",
+      "repo": "mxous/PodcastRandomizer",
+      "asset": "PodcastRandomizer.dll",
+      "loader": "bepinex",
+      "tags": [ "gameplay", "randomizer" ]
+    },
+    {
+      "id": "Elwilo3.FpsToggleMod",
+      "name": "FpsToggleMod",
+      "author": "Elwilo3",
+      "description": "Switch FPS limits in-game with hotkeys (keyboard or controller), for speedrun tricks like topgrabs. H opens the menu.",
+      "repo": "Elwilo3/FpsToggleMod",
+      "asset": "FpsToggleMod.dll",
+      "loader": "bepinex",
+      "tags": [ "speedrun", "performance" ]
+    },
+    {
+      "id": "sinai-dev.UnityExplorer",
+      "name": "UnityExplorer",
+      "author": "sinai-dev",
+      "description": "In-game inspector for Unity objects, scenes and components. Useful for finding things to mod.",
+      "homepage": "https://github.com/sinai-dev/UnityExplorer",
+      "repo": "sinai-dev/UnityExplorer",
+      "asset": "UnityExplorer.BepInEx5.Mono.zip",
+      "loader": "bepinex",
+      "tags": [ "tools", "debug" ]
+    },
+    {
+      "id": "nexus.gettowork.2",
+      "name": "PracticeMod",
+      "author": "FinnLop",
+      "description": "Speedrun practice: save checkpoints and teleport back, NoClip, and adjust time scale, player size and acceleration. Includes preset checkpoints for the main splits.",
+      "nexus": { "modId": 2 },
+      "loader": "bepinex",
+      "tags": [ "speedrun", "practice" ]
+    },
+    {
+      "id": "nexus.gettowork.5",
+      "name": "TeleportTool",
+      "author": "REVNERV",
+      "description": "A simple menu for teleporting to important locations.",
+      "nexus": { "modId": 5 },
+      "tags": [ "practice" ]
+    },
+    {
+      "id": "nexus.gettowork.6",
+      "name": "Get To Multiplayer",
+      "author": "itslaymxd",
+      "description": "Online multiplayer over the internet, up to 100 players in one server.",
+      "nexus": { "modId": 6 },
+      "tags": [ "multiplayer" ]
+    },
+    {
+      "id": "nexus.gettowork.7",
+      "name": "Player Health",
+      "author": "itslaymxd",
+      "description": "Brings back the game's scrapped health system.",
+      "nexus": { "modId": 7 },
+      "tags": [ "gameplay" ]
+    },
+    {
+      "id": "nexus.gettowork.8",
+      "name": "FpsToggleMod (Nexus)",
+      "author": "FinnLop",
+      "description": "Toggle FPS limits on the fly with customizable keyboard and controller hotkeys. The Nexus release of FpsToggleMod; install only one copy.",
+      "nexus": { "modId": 8 },
+      "loader": "bepinex",
+      "tags": [ "speedrun", "performance" ]
+    },
+    {
+      "id": "nexus.gettowork.9",
+      "name": "Performance Mod",
+      "author": "itslaymxd",
+      "description": "Raises FPS for players and speedrunners.",
+      "nexus": { "modId": 9 },
+      "tags": [ "performance" ]
+    },
+    {
+      "id": "nexus.gettowork.10",
+      "name": "FullForwardMod",
+      "author": "FinnLop",
+      "description": "Challenge mode where you always move forward, with a configurable grab nerf (Off, Recharging or One-use). Settings on TAB, help on K.",
+      "nexus": { "modId": 10 },
+      "tags": [ "challenge" ]
+    },
+    {
+      "id": "nexus.gettowork.12",
+      "name": "Jump To Work",
+      "author": "FinnLop",
+      "description": "Replaces normal movement with Jump King style charged jumps.",
+      "nexus": { "modId": 12 },
+      "loader": "bepinex",
+      "tags": [ "challenge" ]
+    },
+    {
+      "id": "nexus.gettowork.13",
+      "name": "Get To Work Custom Maps",
+      "author": "itslaymxd",
+      "description": "Loads custom .g2wmap maps made with the Get To Work Map Tools.",
+      "nexus": { "modId": 13 },
+      "tags": [ "maps" ]
+    },
+    {
+      "id": "nexus.gettowork.15",
+      "name": "Get To Chaos",
+      "author": "itslaymxd",
+      "description": "Chaos mod: a random effect every 30 seconds. Supports user-made effects.",
+      "nexus": { "modId": 15 },
+      "tags": [ "chaos" ]
+    },
+    {
+      "id": "nexus.gettowork.16",
+      "name": "Get To ReWorked",
+      "author": "Gorvert",
+      "description": "Multiplayer over Steam Networking for The Corporate Ladder, Doinkler Portfolio and Doinkler Special.",
+      "nexus": { "modId": 16 },
+      "tags": [ "multiplayer" ]
+    }
+  ]
+}

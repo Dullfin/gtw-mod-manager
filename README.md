@@ -2,6 +2,34 @@
 
 A Windows mod manager for **Get To Work** (Unity Mono). Supports both **BepInEx 5** and **MelonLoader**.
 
+**[Download the latest release](https://github.com/Dullfin/gtw-mod-manager/releases/latest)**: grab `GTWModManager-<version>-win-x64.exe` and run it. No installer, and it updates itself.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/installed-dark.png">
+  <img alt="Installed mods, with the mod loader picker at the top" src="docs/screenshots/installed-light.png">
+</picture>
+
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/browse-dark.png">
+        <img alt="Browsing community mods from GitHub and Nexus Mods" src="docs/screenshots/browse-light.png">
+      </picture>
+      <p align="center"><b>Browse community mods</b> from GitHub and Nexus Mods</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
+        <img alt="Settings: appearance, mod list, Nexus Mods" src="docs/screenshots/settings-light.png">
+      </picture>
+      <p align="center"><b>Settings</b>: light or dark mode, mod list, Nexus key</p>
+    </td>
+  </tr>
+</table>
+
+Screenshots follow your GitHub theme; the app follows your Windows one.
+
 ## Features
 
 - **Finds the game** through Steam.

@@ -23,7 +23,12 @@ public sealed class MainViewModel : Observable, IDisposable
     public MainViewModel()
     {
         _indexUrl = _settings.EffectiveIndexUrl;
-        RefreshCommand = new RelayCommand(_ => RunAsync("Refreshing", async () => { await RefreshAllAsync(); FlattenOldInstalls(); }), _ => !IsBusy);
+        RefreshCommand = new RelayCommand(_ => RunAsync("Refreshing", async () =>
+        {
+            _catalog.ClearReleaseCache();
+            await RefreshAllAsync();
+            FlattenOldInstalls();
+        }), _ => !IsBusy);
         BrowseGameCommand = new RelayCommand(BrowseGame, () => !IsBusy);
         InstallFileCommand = new RelayCommand(InstallFileDialog, () => HasGame && !IsBusy);
         InstallLoaderCommand = new RelayCommand(p => RunAsync("Installing mod loader", () => InstallLoaderAndOfferSwitchAsync(ParseLoader(p)!.Value)), _ => HasGame && !IsBusy);
@@ -508,7 +513,7 @@ public sealed class MainViewModel : Observable, IDisposable
                 }
                 else
                 {
-                    row.LatestVersion = (await _catalog.ResolveAsync(row.Entry)).Version;
+                    row.LatestVersion = (await _catalog.ResolveAsync(row.Entry, fresh: true)).Version;
                 }
             }
             catch (Exception e) when (e is HttpRequestException or InvalidOperationException or TaskCanceledException or NexusException)
@@ -705,7 +710,8 @@ public sealed class MainViewModel : Observable, IDisposable
         else
         {
             Status = $"Finding the latest {entry.Name}...";
-            var download = await _catalog.ResolveAsync(entry);
+            // Always ask GitHub again: the author may have published a new version since we last looked.
+            var download = await _catalog.ResolveAsync(entry, fresh: true);
             Status = $"Downloading {download.FileName}...";
             file = await _catalog.DownloadAsync(download, new Progress<double>(p => Progress = p * 100));
             tempDir = Path.GetDirectoryName(file);

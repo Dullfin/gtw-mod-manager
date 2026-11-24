@@ -70,7 +70,7 @@ public static class LoaderService
         var entry = loader == ModLoader.BepInEx
             ? new IndexEntry { Id = "BepInEx", Name = "BepInEx", Repo = "BepInEx/BepInEx", Asset = "BepInEx_win_x64_5.*.zip" }
             : new IndexEntry { Id = "MelonLoader", Name = "MelonLoader", Repo = "LavaGang/MelonLoader", Asset = "MelonLoader.x64.zip" };
-        return await client.ResolveAsync(entry, ct);
+        return await client.ResolveAsync(entry, fresh: true, ct);
     }
 
     /// <summary>

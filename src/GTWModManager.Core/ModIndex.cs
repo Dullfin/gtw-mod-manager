@@ -78,13 +78,26 @@ public sealed class ModCatalogClient : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     private readonly HttpClient _http;
-    private readonly Dictionary<string, List<GitHubRelease>> _releaseCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly string _apiBase;
 
-    public ModCatalogClient()
+    /// <summary>
+    /// Release lists are remembered briefly so showing the list doesn't spend GitHub's 60-requests-an-hour
+    /// limit, but never for long: a mod author may publish a new version while the app is open.
+    /// Installs and "Check for updates" always ask GitHub again.
+    /// </summary>
+    public static readonly TimeSpan ReleaseCacheLifetime = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<string, (DateTime Fetched, List<GitHubRelease> Releases)> _releaseCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <param name="apiBase">GitHub API root; tests point it at a local server.</param>
+    public ModCatalogClient(string apiBase = "https://api.github.com")
     {
+        _apiBase = apiBase.TrimEnd('/');
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("GTWModManager", "1.0"));
     }
+
+    /// <summary>Forgets every remembered release list, e.g. when the user clicks Refresh.</summary>
+    public void ClearReleaseCache() => _releaseCache.Clear();
 
     /// <summary>Loads the index from a URL, or the copy built into the app when url is empty.</summary>
     public async Task<ModIndex> LoadIndexAsync(string? url, CancellationToken ct = default)
@@ -109,7 +122,8 @@ public sealed class ModCatalogClient : IDisposable
         return index;
     }
 
-    public async Task<ResolvedDownload> ResolveAsync(IndexEntry entry, CancellationToken ct = default)
+    /// <param name="fresh">Ask GitHub even if the release list was fetched recently. Use it for installs.</param>
+    public async Task<ResolvedDownload> ResolveAsync(IndexEntry entry, bool fresh = false, CancellationToken ct = default)
     {
         if (entry.Repo is null && entry.DownloadUrl is null)
             throw new InvalidOperationException($"{entry.Name} is hosted on Nexus Mods; use the Nexus client.");
@@ -119,7 +133,7 @@ public sealed class ModCatalogClient : IDisposable
             return new ResolvedDownload(entry.Version ?? "?", entry.DownloadUrl, name, null, entry.Sha256);
         }
 
-        var releases = await GetReleasesAsync(entry.Repo!, ct);
+        var releases = await GetReleasesAsync(entry.Repo!, fresh, ct);
         foreach (var release in releases.Where(r => !r.Draft && !r.Prerelease))
         {
             var asset = PickAsset(release.Assets, entry.Asset);
@@ -129,15 +143,18 @@ public sealed class ModCatalogClient : IDisposable
         throw new InvalidOperationException($"No release of {entry.Repo} has a file matching \"{entry.Asset ?? "*.zip / *.dll"}\".");
     }
 
-    public async Task<List<GitHubRelease>> GetReleasesAsync(string repo, CancellationToken ct = default)
+    public async Task<List<GitHubRelease>> GetReleasesAsync(string repo, bool fresh = false, CancellationToken ct = default)
     {
-        if (_releaseCache.TryGetValue(repo, out var cached)) return cached;
-        using var resp = await _http.GetAsync($"https://api.github.com/repos/{repo}/releases?per_page=30", ct);
+        if (!fresh && _releaseCache.TryGetValue(repo, out var cached) && DateTime.UtcNow - cached.Fetched < ReleaseCacheLifetime)
+            return cached.Releases;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{_apiBase}/repos/{repo}/releases?per_page=30");
+        request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true };
+        using var resp = await _http.SendAsync(request, ct);
         if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 429)
             throw new HttpRequestException("GitHub rate limit reached (60 requests per hour without sign-in). Try again later.");
         resp.EnsureSuccessStatusCode();
         var list = await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(await resp.Content.ReadAsStreamAsync(ct), JsonOptions, ct) ?? [];
-        _releaseCache[repo] = list;
+        _releaseCache[repo] = (DateTime.UtcNow, list);
         return list;
     }
 

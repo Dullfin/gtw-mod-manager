@@ -269,6 +269,43 @@ Check(File.ReadAllText(fakeExe) == "new version" && File.ReadAllText(fakeExe + "
 await UpdateService.CleanupAfterUpdateAsync(fakeExe);
 Check(!File.Exists(fakeExe + ".old"), "update: cleanup removes the old exe");
 
+// ---- a new mod release published while the app is open ---------------------------------------------
+// Fake GitHub API on localhost: serves "test/mod" at 0.5.0, then at 0.6.0 once "published".
+string releasesJson(params string[] tags) => "[" + string.Join(",", tags.Select(t =>
+    $$"""{"tag_name":"{{t}}","draft":false,"prerelease":false,"assets":[{"name":"Mod.dll","browser_download_url":"http://x/{{t}}/Mod.dll","size":1}]}""")) + "]";
+var servedJson = releasesJson("v0.5.0");
+int apiCalls = 0;
+var listener = new System.Net.HttpListener();
+var port = new Random().Next(20000, 40000);
+listener.Prefixes.Add($"http://localhost:{port}/");
+listener.Start();
+_ = Task.Run(async () =>
+{
+    while (listener.IsListening)
+    {
+        System.Net.HttpListenerContext ctx;
+        try { ctx = await listener.GetContextAsync(); } catch { break; }
+        Interlocked.Increment(ref apiCalls);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(servedJson);
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.OutputStream.WriteAsync(bytes);
+        ctx.Response.Close();
+    }
+});
+using (var fakeGitHub = new ModCatalogClient($"http://localhost:{port}"))
+{
+    var modEntry = new IndexEntry { Id = "test.mod", Name = "Test Mod", Repo = "test/mod", Asset = "Mod.dll" };
+    Check((await fakeGitHub.ResolveAsync(modEntry)).Version == "0.5.0", "releases: first look-up finds 0.5.0");
+    servedJson = releasesJson("v0.6.0", "v0.5.0"); // the author publishes 0.6.0
+    var callsBefore = apiCalls;
+    Check((await fakeGitHub.ResolveAsync(modEntry)).Version == "0.5.0" && apiCalls == callsBefore, "releases: list look-ups reuse the recent answer (saves GitHub's rate limit)");
+    Check((await fakeGitHub.ResolveAsync(modEntry, fresh: true)).Version == "0.6.0", "releases: installs ask GitHub again and get 0.6.0");
+    servedJson = releasesJson("v0.7.0", "v0.6.0", "v0.5.0");
+    fakeGitHub.ClearReleaseCache();
+    Check((await fakeGitHub.ResolveAsync(modEntry)).Version == "0.7.0", "releases: Refresh forgets remembered lists");
+}
+listener.Stop();
+
 // ---- real game folder: read-only scan -----------------------------------------------------------
 var real = new ModService(new GamePaths(realGame)) { CheckGameRunning = false };
 Console.WriteLine("\nReal game folder scan (read-only):");

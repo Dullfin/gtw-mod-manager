@@ -22,21 +22,38 @@ public sealed class AppSettings
     /// <summary>Raw URL of the community mods.json. Null means <see cref="DefaultIndexUrl"/>.</summary>
     public string? IndexUrl { get; set; }
 
-    /// <summary>The Nexus API key, encrypted with Windows DPAPI for the current user.</summary>
+    /// <summary>
+    /// The Nexus API key. On Windows it's encrypted with DPAPI for the current user. On Linux it's
+    /// stored as "plain:&lt;base64&gt;" in a settings file only the user can read (mode 600).
+    /// </summary>
     public string? NexusApiKeyProtected { get; set; }
+
+    private const string PlainPrefix = "plain:";
 
     public string EffectiveIndexUrl => string.IsNullOrWhiteSpace(IndexUrl) ? DefaultIndexUrl : IndexUrl;
 
     public string? GetNexusApiKey()
     {
         if (string.IsNullOrEmpty(NexusApiKeyProtected)) return null;
-        try { return Encoding.UTF8.GetString(Dpapi.Unprotect(Convert.FromBase64String(NexusApiKeyProtected))); }
+        try
+        {
+            if (NexusApiKeyProtected.StartsWith(PlainPrefix, StringComparison.Ordinal))
+                return Encoding.UTF8.GetString(Convert.FromBase64String(NexusApiKeyProtected[PlainPrefix.Length..]));
+            return Platform.IsWindows
+                ? Encoding.UTF8.GetString(Dpapi.Unprotect(Convert.FromBase64String(NexusApiKeyProtected)))
+                : null;
+        }
         catch (Exception e) when (e is FormatException or System.ComponentModel.Win32Exception) { return null; }
     }
 
-    public void SetNexusApiKey(string? key) =>
-        NexusApiKeyProtected = string.IsNullOrWhiteSpace(key) ? null
-            : Convert.ToBase64String(Dpapi.Protect(Encoding.UTF8.GetBytes(key.Trim())));
+    public void SetNexusApiKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) { NexusApiKeyProtected = null; return; }
+        var bytes = Encoding.UTF8.GetBytes(key.Trim());
+        NexusApiKeyProtected = Platform.IsWindows
+            ? Convert.ToBase64String(Dpapi.Protect(bytes))
+            : PlainPrefix + Convert.ToBase64String(bytes);
+    }
 
     public static AppSettings Load()
     {
@@ -53,6 +70,7 @@ public sealed class AppSettings
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
         File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        Platform.MakePrivate(FilePath);
     }
 }
 

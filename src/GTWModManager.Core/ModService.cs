@@ -61,7 +61,30 @@ public sealed class ModService
     /// <summary>Set to false in tests so the running-game check is skipped.</summary>
     public bool CheckGameRunning { get; set; } = true;
 
-    public static bool IsGameRunning() => Process.GetProcessesByName(GamePaths.ProcessName).Length > 0;
+    public static bool IsGameRunning()
+    {
+        if (Platform.IsWindows) return Process.GetProcessesByName(GamePaths.ProcessName).Length > 0;
+
+        // Under Proton the game is a Wine process; its command line names the Windows exe.
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories("/proc"))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out _)) continue;
+                try
+                {
+                    var cmdline = File.ReadAllText(Path.Combine(dir, "cmdline"));
+                    if (cmdline.Contains(GamePaths.ExeName, StringComparison.OrdinalIgnoreCase)
+                        && !cmdline.Contains("GTWModManager", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch (IOException) { }               // the process ended while we looked
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (DirectoryNotFoundException) { }
+        return false;
+    }
 
     public void EnsureGameNotRunning()
     {

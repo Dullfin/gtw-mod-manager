@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    Shared by every project under src/. The Windows app (GTWModManager, WPF) and the Linux app
+    (GTWModManager.Linux, Avalonia) are released together under one version, so each app's
+    built-in updater finds its own build in the same GitHub release.
+    Bump this, commit, then run tools/build-release.ps1.
+  -->
+  <PropertyGroup>
+    <Version>0.5.0</Version>
+  </PropertyGroup>
+</Project>

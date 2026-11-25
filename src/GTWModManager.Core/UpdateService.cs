@@ -17,13 +17,14 @@ public sealed record AppReleaseAsset(string Name, string Url, long Size);
 /// <summary>
 /// Checks GitHub for a newer release of the mod manager and replaces the running exe with it.
 ///
-/// Releases carry two single-file exes, named by tools/build-release.ps1:
-///   GTWModManager-{version}-win-x64.exe                 standalone (bundles .NET)
-///   GTWModManager-{version}-win-x64-needs-dotnet9.exe   needs the .NET 9 Desktop Runtime
+/// Releases carry single-file builds, named by tools/build-release.ps1:
+///   GTWModManager-{version}-win-x64.exe                 Windows, standalone (bundles .NET)
+///   GTWModManager-{version}-win-x64-needs-dotnet9.exe   Windows, needs the .NET 9 Desktop Runtime
+///   GTWModManager-{version}-linux-x64                   Linux, standalone
 /// plus SHA256SUMS.txt. Each build updates to the same kind it already is.
 ///
-/// Windows lets a running exe be renamed, so the update renames the current exe to "*.old",
-/// moves the new one into place and restarts. The next start deletes the ".old" copy.
+/// Both Windows and Linux let a running program's file be renamed, so the update renames the
+/// current one to "*.old", moves the new one into place and restarts. The next start deletes the ".old" copy.
 /// </summary>
 public sealed class UpdateService : IDisposable
 {
@@ -63,7 +64,7 @@ public sealed class UpdateService : IDisposable
 
     /// <summary>True for the standalone build, which carries its own copy of .NET.</summary>
     public static bool IsSelfContained =>
-        !RuntimeEnvironment.GetRuntimeDirectory().Contains(@"\dotnet\shared\", StringComparison.OrdinalIgnoreCase);
+        !RuntimeEnvironment.GetRuntimeDirectory().Replace('\\', '/').Contains("/dotnet/shared/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Returns the latest release, or null if there is none (or the repo isn't public).</summary>
     public async Task<AppRelease?> GetLatestAsync(CancellationToken ct = default)
@@ -79,7 +80,7 @@ public sealed class UpdateService : IDisposable
 
         var assets = dto.Assets.Select(a => new AppReleaseAsset(a.Name, a.Url, a.Size)).ToList();
         return new AppRelease(version, dto.TagName, dto.Name ?? dto.TagName, dto.Body ?? "", dto.HtmlUrl ?? ReleasesPage,
-            PickExe(assets, IsSelfContained),
+            PickExe(assets, IsSelfContained, linux: Platform.IsLinux),
             assets.FirstOrDefault(a => a.Name.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase)));
     }
 
@@ -95,9 +96,12 @@ public sealed class UpdateService : IDisposable
         return true;
     }
 
-    /// <summary>Picks the exe of the same kind as the running build.</summary>
-    public static AppReleaseAsset? PickExe(IEnumerable<AppReleaseAsset> assets, bool selfContained)
+    /// <summary>Picks the build of the same kind as the running one.</summary>
+    public static AppReleaseAsset? PickExe(IEnumerable<AppReleaseAsset> assets, bool selfContained, bool linux = false)
     {
+        if (linux)
+            return assets.FirstOrDefault(a => a.Name.Contains("GTWModManager", StringComparison.OrdinalIgnoreCase)
+                                              && a.Name.EndsWith("-linux-x64", StringComparison.OrdinalIgnoreCase));
         var exes = assets.Where(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                                      && a.Name.Contains("GTWModManager", StringComparison.OrdinalIgnoreCase)).ToList();
         return selfContained
@@ -112,7 +116,7 @@ public sealed class UpdateService : IDisposable
     public async Task<string> DownloadAsync(AppRelease release, string targetExe, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         var asset = release.Exe ?? throw new InvalidOperationException(
-            $"Release {release.Tag} has no {(IsSelfContained ? "standalone" : ".NET 9")} exe to update to.");
+            $"Release {release.Tag} has no {(Platform.IsLinux ? "Linux" : IsSelfContained ? "standalone" : ".NET 9")} build to update to.");
         var dest = targetExe + ".update";
         if (File.Exists(dest)) File.Delete(dest);
 
@@ -172,6 +176,7 @@ public sealed class UpdateService : IDisposable
         try
         {
             File.Move(newExe, currentExe);
+            Platform.MakeExecutable(currentExe); // a download isn't executable on Linux until marked so
         }
         catch
         {

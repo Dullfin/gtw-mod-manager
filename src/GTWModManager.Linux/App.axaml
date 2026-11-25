@@ -1,0 +1,171 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="GTWModManager.App"
+             RequestedThemeVariant="Default">
+    <!--
+        The look is Avalonia's Fluent theme plus a small palette of our own, defined once for light
+        and once for dark mode. Every colour below is a DynamicResource, so switching themes recolours
+        the whole window. "Default" follows the operating system's light/dark setting.
+    -->
+    <Application.Styles>
+        <FluentTheme />
+        <materialIcons:MaterialIconStyles />
+
+        <!-- Text -->
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        </Style>
+        <Style Selector="TextBlock.badge">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+        </Style>
+
+        <!-- Surfaces -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+        <Style Selector="Border.badge">
+            <Setter Property="Background" Value="{DynamicResource SubtleFill}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStroke}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="Margin" Value="0,0,6,4" />
+        </Style>
+        <Style Selector="Border.badge.ok">
+            <Setter Property="Background" Value="{DynamicResource SuccessBackground}" />
+        </Style>
+        <Style Selector="Border.badge.update">
+            <Setter Property="Background" Value="{DynamicResource CautionBackground}" />
+        </Style>
+        <Style Selector="Border.banner">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStroke}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <!-- Buttons: icon + text, a bit roomier than the default -->
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="materialIcons|MaterialIcon">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+        </Style>
+
+        <!-- Segmented control for picking the mod loader -->
+        <Style Selector="RadioButton.segment">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="PART_Bd" CornerRadius="6" Padding="14,7" Margin="2" Background="Transparent">
+                        <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="RadioButton.segment:pointerover /template/ Border#PART_Bd">
+            <Setter Property="Background" Value="{DynamicResource SubtleFill}" />
+        </Style>
+        <Style Selector="RadioButton.segment:checked /template/ Border#PART_Bd">
+            <Setter Property="Background" Value="{DynamicResource AccentFill}" />
+        </Style>
+        <Style Selector="RadioButton.segment:checked">
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
+        </Style>
+        <Style Selector="RadioButton.segment:disabled">
+            <Setter Property="Opacity" Value="0.45" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+
+        <!-- Tabs: larger text and an accent bar under the selected one -->
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="12,4" />
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
+        </Style>
+
+        <!-- Rows of the installed-mods list -->
+        <Style Selector="Border.row">
+            <Setter Property="Padding" Value="0,6" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Divider}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SubtleFill}" />
+        </Style>
+    </Application.Styles>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackground" Color="#F3F3F3" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="CardStroke" Color="#E2E2E2" />
+                    <SolidColorBrush x:Key="Divider" Color="#EDEDED" />
+                    <SolidColorBrush x:Key="TextPrimary" Color="#1B1B1B" />
+                    <SolidColorBrush x:Key="TextSecondary" Color="#5E5E5E" />
+                    <SolidColorBrush x:Key="TextTertiary" Color="#8C8C8C" />
+                    <SolidColorBrush x:Key="SubtleFill" Color="#0B000000" />
+                    <SolidColorBrush x:Key="ControlStroke" Color="#17000000" />
+                    <SolidColorBrush x:Key="AccentFill" Color="#005FB8" />
+                    <SolidColorBrush x:Key="AccentText" Color="#005FB8" />
+                    <SolidColorBrush x:Key="OnAccent" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TagBackground" Color="#005FB8" />
+                    <SolidColorBrush x:Key="CautionBackground" Color="#FFF4CE" />
+                    <SolidColorBrush x:Key="CautionIcon" Color="#9D5D00" />
+                    <SolidColorBrush x:Key="SuccessBackground" Color="#DFF6DD" />
+                    <SolidColorBrush x:Key="AttentionBackground" Color="#E8F1FB" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackground" Color="#202020" />
+                    <SolidColorBrush x:Key="CardBackground" Color="#2B2B2B" />
+                    <SolidColorBrush x:Key="CardStroke" Color="#1D1D1D" />
+                    <SolidColorBrush x:Key="Divider" Color="#353535" />
+                    <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextSecondary" Color="#C9C9C9" />
+                    <SolidColorBrush x:Key="TextTertiary" Color="#9A9A9A" />
+                    <SolidColorBrush x:Key="SubtleFill" Color="#10FFFFFF" />
+                    <SolidColorBrush x:Key="ControlStroke" Color="#1AFFFFFF" />
+                    <SolidColorBrush x:Key="AccentFill" Color="#60CDFF" />
+                    <SolidColorBrush x:Key="AccentText" Color="#60CDFF" />
+                    <SolidColorBrush x:Key="OnAccent" Color="#000000" />
+                    <SolidColorBrush x:Key="TagBackground" Color="#2F6FA8" />
+                    <SolidColorBrush x:Key="CautionBackground" Color="#433519" />
+                    <SolidColorBrush x:Key="CautionIcon" Color="#FCE100" />
+                    <SolidColorBrush x:Key="SuccessBackground" Color="#393D1B" />
+                    <SolidColorBrush x:Key="AttentionBackground" Color="#2B3440" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

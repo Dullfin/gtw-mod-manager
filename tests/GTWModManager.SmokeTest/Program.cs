@@ -1,11 +1,13 @@
-﻿// End-to-end checks for GTWModManager.Core against a fake game folder.
-// Usage: GTWModManager.SmokeTest <work dir> <real game dir> [--online]
+﻿// End-to-end checks for GTWModManager.Core against a fake game folder. Runs on Windows and Linux.
+// Usage: GTWModManager.SmokeTest <work dir> [real game dir] [--online]
+//   real game dir  optional: also scans a real install, read-only
+//   --online       also downloads the GitHub mods and MelonLoader
 using System.Diagnostics;
 using System.IO.Compression;
 using GTWModManager.Core;
 
 var work = Path.GetFullPath(args[0]);
-var realGame = args[1];
+var realGame = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--") && Directory.Exists(a));
 bool online = args.Contains("--online");
 int failures = 0;
 
@@ -21,23 +23,20 @@ void Throws<T>(Action a, string what) where T : Exception
     catch (T) { Check(true, what); }
 }
 
-// ---- fake game folder with BepInEx and a few real plugin DLLs ------------------
+// ---- fake game folder with BepInEx and some fake plugin DLLs ----------------------
+// The test plugins are built from tests/FakeBepInPlugin and tests/FakeMelonMod.
 if (Directory.Exists(work)) Directory.Delete(work, true);
 var game = Path.Combine(work, "Get To Work");
 var paths = new GamePaths(game);
+var practiceDll = Path.Combine(AppContext.BaseDirectory, "FakeBepInPlugin.dll"); // a BepInEx plugin
+var melonDll = Path.Combine(AppContext.BaseDirectory, "FakeMelonMod.dll");       // a MelonLoader mod
 Directory.CreateDirectory(Path.Combine(paths.BepInExDir, "core"));
 Directory.CreateDirectory(paths.PluginsDir);
 File.WriteAllText(paths.Exe, "");
 File.WriteAllText(Path.Combine(game, "winhttp.dll"), "");
-File.Copy(Path.Combine(realGame, "BepInEx", "core", "BepInEx.dll"), Path.Combine(paths.BepInExDir, "core", "BepInEx.dll"));
-
-// Source DLLs may be enabled, disabled or stray in the real install; take them from wherever they are.
-string FindReal(string file) => new[] { "plugins", "plugins_disabled", "" }
-    .Select(d => Path.Combine(realGame, "BepInEx", d, file)).First(File.Exists);
-File.Copy(FindReal("GrabCounter.dll"), Path.Combine(paths.PluginsDir, "GrabCounter.dll"));
-var practiceDll = FindReal("PracticeMod.dll");
+File.Copy(practiceDll, Path.Combine(paths.BepInExDir, "core", "BepInEx.dll")); // stands in for the loader
+File.Copy(practiceDll, Path.Combine(paths.PluginsDir, "GrabCounter.dll"));
 File.Copy(practiceDll, Path.Combine(paths.BepInExDir, "PracticeMod.dll")); // stray: BepInEx ignores this
-var melonDll = Path.Combine(AppContext.BaseDirectory, "FakeMelonMod.dll");
 
 var svc = new ModService(paths) { CheckGameRunning = false };
 Check(svc.LoaderStatus(ModLoader.BepInEx).Installed && svc.ActiveLoader == ModLoader.BepInEx, "BepInEx detected and active");
@@ -47,7 +46,7 @@ Check(!svc.LoaderStatus(ModLoader.MelonLoader).Installed, "MelonLoader not insta
 var melonMeta = PluginMetadataReader.Read(melonDll).SingleOrDefault();
 Check(melonMeta is { Loader: ModLoader.MelonLoader, Name: "Fake Melon Mod", Version: "1.2.3", Author: "Tester" }, $"MelonInfo read ({melonMeta})");
 var bepMeta = PluginMetadataReader.Read(practiceDll).FirstOrDefault();
-Check(bepMeta?.Loader == ModLoader.BepInEx, $"BepInPlugin read ({bepMeta?.Guid})");
+Check(bepMeta is { Loader: ModLoader.BepInEx, Guid: "com.test.fakeplugin", Name: "Fake Plugin", Version: "2.0.0" }, $"BepInPlugin read ({bepMeta})");
 
 var mods = svc.Scan();
 var grab = mods.Single(m => m.Location == "plugins/GrabCounter.dll");
@@ -164,11 +163,26 @@ var stage = Path.Combine(work, "stage7z");
 Directory.CreateDirectory(Path.Combine(stage, "SevenMod"));
 File.Copy(practiceDll, Path.Combine(stage, "SevenMod", "SevenMod.dll"));
 var sevenZip = Path.Combine(work, "seven.7z");
-var tar = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "tar.exe"), $"--format 7zip -cf \"{sevenZip}\" SevenMod") { WorkingDirectory = stage, UseShellExecute = false })!;
-tar.WaitForExit();
-var seven = svc.InstallFromFile(sevenZip, new InstallRequest("test.seven", "Seven"));
-Check(seven.Loader == ModLoader.BepInEx && File.Exists(Path.Combine(paths.PluginsDir, "SevenMod.dll")) && seven.Items.SequenceEqual(["plugins/SevenMod.dll"]),
-      ".7z extracted and installed directly into plugins: " + string.Join(",", seven.Items));
+// Windows ships bsdtar as tar.exe; on Linux use bsdtar or 7-Zip if installed.
+ProcessStartInfo? make7z = Platform.IsWindows
+    ? new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "tar.exe"), $"--format 7zip -cf \"{sevenZip}\" SevenMod")
+    : Platform.FindOnPath("bsdtar") is { } bsdtar ? new ProcessStartInfo(bsdtar, $"--format 7zip -cf \"{sevenZip}\" SevenMod")
+    : Platform.FindOnPath("7zz", "7z", "7za") is { } sz ? new ProcessStartInfo(sz, $"a \"{sevenZip}\" SevenMod")
+    : null;
+if (make7z is null)
+{
+    Console.WriteLine("SKIP  .7z install: no bsdtar or 7-Zip on this machine");
+}
+else
+{
+    make7z.WorkingDirectory = stage;
+    make7z.UseShellExecute = false;
+    make7z.RedirectStandardOutput = true;
+    using (var maker = Process.Start(make7z)!) { maker.StandardOutput.ReadToEnd(); maker.WaitForExit(); }
+    var seven = svc.InstallFromFile(sevenZip, new InstallRequest("test.seven", "Seven"));
+    Check(seven.Loader == ModLoader.BepInEx && File.Exists(Path.Combine(paths.PluginsDir, "SevenMod.dll")) && seven.Items.SequenceEqual(["plugins/SevenMod.dll"]),
+          ".7z extracted and installed directly into plugins: " + string.Join(",", seven.Items));
+}
 
 // ---- plain-DLL downloads go straight into plugins; downloads with assets keep a folder ------------
 var plainDll = Path.Combine(work, "Plain.dll");
@@ -249,7 +263,9 @@ var releaseAssets = new List<AppReleaseAsset>
     new("SHA256SUMS.txt", "u", 1),
     new("GTWModManager-0.4.0-win-x64-needs-dotnet9.exe", "u", 1),
     new("GTWModManager-0.4.0-win-x64.exe", "u", 1),
+    new("GTWModManager-0.4.0-linux-x64", "u", 1),
 };
+Check(UpdateService.PickExe(releaseAssets, selfContained: true, linux: true)?.Name == "GTWModManager-0.4.0-linux-x64", "update: Linux build picks the Linux file");
 Check(UpdateService.PickExe(releaseAssets, selfContained: true)?.Name == "GTWModManager-0.4.0-win-x64.exe", "update: standalone build picks the standalone exe");
 Check(UpdateService.PickExe(releaseAssets, selfContained: false)?.Name == "GTWModManager-0.4.0-win-x64-needs-dotnet9.exe", "update: .NET 9 build picks the small exe");
 
@@ -306,13 +322,58 @@ using (var fakeGitHub = new ModCatalogClient($"http://localhost:{port}"))
 }
 listener.Stop();
 
-// ---- real game folder: read-only scan -----------------------------------------------------------
-var real = new ModService(new GamePaths(realGame)) { CheckGameRunning = false };
-Console.WriteLine("\nReal game folder scan (read-only):");
-foreach (var m in real.Scan())
-    Console.WriteLine($"  [{(m.IsEnabled ? "x" : " ")}] {m.Name,-28} {m.Version,-8} {m.Loader,-11} {m.Kind,-9} {m.Location}");
-foreach (var l in new[] { ModLoader.BepInEx, ModLoader.MelonLoader })
-    Console.WriteLine("  " + real.LoaderStatus(l));
+// ---- Linux / Proton helpers (run on every OS; they only parse text) ----------------------------------
+Check(SteamLaunchOptions.Evaluate(null).State == LaunchOptionState.Missing, "launch options: none set");
+Check(SteamLaunchOptions.Evaluate("gamemoderun %command%").State == LaunchOptionState.Missing, "launch options: unrelated option");
+Check(SteamLaunchOptions.Evaluate(SteamLaunchOptions.Recommended) is { State: LaunchOptionState.Ok, AllowsBepInEx: true, AllowsMelonLoader: true }, "launch options: recommended text allows both loaders");
+Check(SteamLaunchOptions.Evaluate("WINEDLLOVERRIDES=\"winhttp=n,b\" %command%") is { State: LaunchOptionState.Partial, AllowsBepInEx: true, AllowsMelonLoader: false }, "launch options: BepInEx only is partial");
+Check(SteamLaunchOptions.Evaluate("WINEDLLOVERRIDES='version=n,b;d3d11=b' %command%") is { AllowsMelonLoader: true, AllowsBepInEx: false }, "launch options: single quotes and several groups");
+Check(SteamLaunchOptions.Evaluate("WINEDLLOVERRIDES=winhttp,version=b %command%").State == LaunchOptionState.Missing, "launch options: builtin-only override doesn't count");
+var vdf = """
+"UserLocalConfigStore"
+{
+	"Software"
+	{
+		"Valve"
+		{
+			"Steam"
+			{
+				"apps"
+				{
+					"1234"
+					{
+						"LaunchOptions"		"-other"
+					}
+					"2706170"
+					{
+						"LastPlayed"		"1764000000"
+						"cloud" { "last_sync_state" "synchronized" }
+						"LaunchOptions"		"WINEDLLOVERRIDES=\"winhttp,version=n,b\" %command%"
+					}
+				}
+			}
+		}
+	}
+}
+""";
+Check(SteamLaunchOptions.ReadLaunchOptions(vdf, "2706170") == SteamLaunchOptions.Recommended, "launch options: read from Steam's localconfig.vdf for the right game");
+Check(SteamLaunchOptions.ReadLaunchOptions(vdf, "999") is null, "launch options: other games ignored");
+var userDirs = Path.Combine(work, "user-dirs.dirs");
+File.WriteAllText(userDirs, "# comment\nXDG_DESKTOP_DIR=\"$HOME/Desktop\"\nXDG_DOWNLOAD_DIR=\"$HOME/Téléchargements\"\n");
+Check(DownloadWatcher.XdgDownloadDir("/home/test", userDirs) == "/home/test/Téléchargements", "Linux Downloads folder read from user-dirs.dirs");
+Check(!ModService.IsGameRunning(), "game-running check works on this OS (game isn't running)");
+Console.WriteLine($"INFO  OS: {(Platform.IsWindows ? "Windows" : Platform.IsLinux ? "Linux" : "other")}, Steam roots found: {GameLocator.SteamRoots().Count()}, game found: {GameLocator.Find() ?? "no"}, launch option: {SteamLaunchOptions.Check().State}");
+
+// ---- real game folder: read-only scan (only when one is given) ------------------------------------
+if (realGame is not null)
+{
+    var real = new ModService(new GamePaths(realGame)) { CheckGameRunning = false };
+    Console.WriteLine("\nReal game folder scan (read-only):");
+    foreach (var m in real.Scan())
+        Console.WriteLine($"  [{(m.IsEnabled ? "x" : " ")}] {m.Name,-28} {m.Version,-8} {m.Loader,-11} {m.Kind,-9} {m.Location}");
+    foreach (var l in new[] { ModLoader.BepInEx, ModLoader.MelonLoader })
+        Console.WriteLine("  " + real.LoaderStatus(l));
+}
 
 // ---- built-in list ----------------------------------------------------------------------------------
 using var client = new ModCatalogClient();

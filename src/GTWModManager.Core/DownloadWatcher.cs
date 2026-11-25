@@ -12,14 +12,38 @@ public static class DownloadWatcher
     {
         get
         {
-            var id = new Guid("374DE290-123F-4565-9164-39C4925E467B"); // FOLDERID_Downloads
-            if (SHGetKnownFolderPath(id, 0, IntPtr.Zero, out var ptr) == 0)
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (Platform.IsWindows)
             {
-                try { return Marshal.PtrToStringUni(ptr)!; }
-                finally { Marshal.FreeCoTaskMem(ptr); }
+                var id = new Guid("374DE290-123F-4565-9164-39C4925E467B"); // FOLDERID_Downloads
+                if (SHGetKnownFolderPath(id, 0, IntPtr.Zero, out var ptr) == 0)
+                {
+                    try { return Marshal.PtrToStringUni(ptr)!; }
+                    finally { Marshal.FreeCoTaskMem(ptr); }
+                }
             }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            else if (XdgDownloadDir(home) is { } xdg)
+            {
+                return xdg;
+            }
+            return Path.Combine(home, "Downloads");
         }
+    }
+
+    /// <summary>Linux desktops record the (possibly translated) Downloads folder in ~/.config/user-dirs.dirs.</summary>
+    public static string? XdgDownloadDir(string home, string? userDirsFile = null)
+    {
+        var configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } c ? c : Path.Combine(home, ".config");
+        var file = userDirsFile ?? Path.Combine(configHome, "user-dirs.dirs");
+        if (!File.Exists(file)) return null;
+        foreach (var line in File.ReadLines(file))
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith("XDG_DOWNLOAD_DIR=", StringComparison.Ordinal)) continue;
+            var value = trimmed["XDG_DOWNLOAD_DIR=".Length..].Trim('"').Replace("$HOME", home);
+            return value.Length > 0 ? value : null;
+        }
+        return null;
     }
 
     /// <summary>

@@ -37,19 +37,22 @@ public sealed class ArchiveContents : IDisposable
                 return new ArchiveContents(entries, zip, null);
 
             case ".7z" or ".rar":
-                // Windows 10+ ships bsdtar (libarchive), which reads 7z and rar and refuses ".." paths.
                 var temp = Path.Combine(Path.GetTempPath(), "GTWModManager", "x-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(temp);
-                var tar = Path.Combine(Environment.SystemDirectory, "tar.exe");
-                var psi = new ProcessStartInfo(tar) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
-                psi.ArgumentList.Add("-xf");
-                psi.ArgumentList.Add(file);
-                psi.ArgumentList.Add("-C");
-                psi.ArgumentList.Add(temp);
+                var psi = ExtractCommand(file, temp);
+                if (psi is null)
+                {
+                    TryDelete(temp);
+                    throw new NotSupportedException(
+                        "Installing .7z and .rar files needs an extraction tool. Install your distro's 7-Zip " +
+                        "(p7zip / 7zip) or libarchive (bsdtar), or extract the file yourself and install the folder's contents.");
+                }
                 using (var p = Process.Start(psi)!)
                 {
+                    var stdout = p.StandardOutput.ReadToEndAsync(); // drain both streams so the tool can't block
                     var err = p.StandardError.ReadToEnd();
                     p.WaitForExit();
+                    stdout.Wait();
                     if (p.ExitCode != 0)
                     {
                         TryDelete(temp);
@@ -63,6 +66,30 @@ public sealed class ArchiveContents : IDisposable
             default:
                 throw new NotSupportedException("Only .zip, .7z, .rar and .dll files can be installed.");
         }
+    }
+
+    /// <summary>
+    /// A command that extracts a 7z/rar file into a folder. Windows 10+ ships bsdtar (libarchive) as
+    /// tar.exe; on Linux use bsdtar or 7-Zip if installed. All of them refuse ".." paths.
+    /// </summary>
+    private static ProcessStartInfo? ExtractCommand(string file, string dest)
+    {
+        ProcessStartInfo Make(string exe, params string[] args)
+        {
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            return psi;
+        }
+
+        if (Platform.IsWindows)
+            return Make(Path.Combine(Environment.SystemDirectory, "tar.exe"), "-xf", file, "-C", dest);
+        if (Platform.FindOnPath("bsdtar") is { } bsdtar)
+            return Make(bsdtar, "-xf", file, "-C", dest);
+        if (Platform.FindOnPath("7zz", "7z", "7za") is { } sevenZip)
+            return Make(sevenZip, "x", "-y", "-o" + dest, file);
+        if (file.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) && Platform.FindOnPath("unrar") is { } unrar)
+            return Make(unrar, "x", "-o+", "-y", file, dest + Path.DirectorySeparatorChar);
+        return null;
     }
 
     public void Dispose()

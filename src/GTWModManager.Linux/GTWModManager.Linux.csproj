@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The Linux app. It also runs on Windows, which is handy for trying it out. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GTWModManager</AssemblyName>
+    <Product>GTW Mod Manager</Product>
+    <RootNamespace>GTWModManager</RootNamespace>
+    <!-- Bindings are checked when building, so a typo in the window can't slip through to Linux unnoticed. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!--
+      Avalonia's InitializeComponent generator needs a newer C# compiler than some .NET 9 SDKs ship,
+      and silently does nothing on older ones. The window loads its XAML and finds its controls itself.
+    -->
+    <AvaloniaNameGeneratorIsEnabled>false</AvaloniaNameGeneratorIsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
+    <PackageReference Include="Material.Icons.Avalonia" Version="3.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GTWModManager.Core\GTWModManager.Core.csproj" />
+  </ItemGroup>
+
+</Project>

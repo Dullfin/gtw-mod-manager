@@ -1,0 +1,489 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:GTWModManager"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:Class="GTWModManager.MainWindow"
+        x:DataType="local:MainViewModel"
+        Title="GTW Mod Manager" Icon="/Assets/app.ico"
+        Width="1120" Height="800" MinWidth="880" MinHeight="580"
+        Background="{DynamicResource AppBackground}"
+        Foreground="{DynamicResource TextPrimary}"
+        FontSize="13"
+        DragDrop.AllowDrop="True">
+
+    <Grid Margin="20,12,20,14" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+
+        <!-- ===================== Header ===================== -->
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Classes="title" Text="GTW Mod Manager" />
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                    <mi:MaterialIcon Kind="FolderOutline" Width="14" Height="14" Foreground="{DynamicResource TextSecondary}" />
+                    <TextBlock Classes="caption" Text="{Binding GameDir}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Button Command="{Binding BrowseGameCommand}" ToolTip.Tip="Choose the Get To Work folder">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="FolderOpenOutline" />
+                        <TextBlock Text="Game folder" />
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding RefreshCommand}" ToolTip.Tip="Rescan mods and reload the community list">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="Refresh" />
+                        <TextBlock Text="Refresh" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="accent" Command="{Binding LaunchCommand}" ToolTip.Tip="Start Get To Work through Steam">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="Play" />
+                        <TextBlock Text="Play" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ===================== New version of the app ===================== -->
+        <Border Grid.Row="1" Classes="banner" Margin="0,0,0,14" Background="{DynamicResource AttentionBackground}"
+                IsVisible="{Binding UpdateAvailable}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <mi:MaterialIcon Kind="Update" Width="20" Height="20" Margin="0,0,12,0" Foreground="{DynamicResource AccentText}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding UpdateBannerText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Classes="caption" TextWrapping="Wrap"
+                               Text="The app downloads the new version, swaps itself out and restarts. Your mods and settings stay as they are." />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Content="Skip this version" Command="{Binding SkipUpdateCommand}" />
+                    <Button Content="What's new" Command="{Binding OpenUpdatePageCommand}" />
+                    <Button Classes="accent" Command="{Binding UpdateNowCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="Download" />
+                            <TextBlock Text="Update now" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                    <Button Padding="8,6" Command="{Binding DismissUpdateCommand}" ToolTip.Tip="Hide until next time">
+                        <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== Linux: Steam launch option ===================== -->
+        <Border Grid.Row="2" Classes="banner" Margin="0,0,0,14" Background="{DynamicResource CautionBackground}"
+                IsVisible="{Binding ShowLaunchOptionBanner}">
+            <Grid ColumnDefinitions="Auto,*">
+                <mi:MaterialIcon Kind="AlertOutline" Width="20" Height="20" Margin="0,2,12,0" VerticalAlignment="Top"
+                                 Foreground="{DynamicResource CautionIcon}" />
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="{Binding LaunchOptionMessage}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Classes="caption" TextWrapping="Wrap"
+                               Text="Get To Work runs through Proton, which only loads mod loaders when told to. In Steam, right-click Get To Work, choose Properties, and paste this into Launch Options on the General page. Then click Refresh here." />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Text="{Binding LaunchOptionText, Mode=OneWay}" IsReadOnly="True" FontFamily="monospace" />
+                        <Button Grid.Column="1" Classes="accent" Margin="6,0,0,0" Command="{Binding CopyLaunchOptionCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="ContentCopy" />
+                                <TextBlock Text="Copy" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== Mod loader ===================== -->
+        <Border Grid.Row="3" Classes="card" Margin="0,0,0,14">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Classes="section" Text="Mod loader" />
+                    <TextBlock Classes="hint" Text="{Binding LoaderHint}" Margin="0,3,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="8">
+                    <Border Background="{DynamicResource SubtleFill}" BorderBrush="{DynamicResource ControlStroke}" BorderThickness="1"
+                            CornerRadius="8" Padding="2" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Classes="segment" GroupName="Loader" MinWidth="120"
+                                         IsChecked="{Binding IsVanillaActive, Mode=OneWay}" IsEnabled="{Binding HasGame}"
+                                         Command="{Binding SwitchLoaderCommand}" CommandParameter="None"
+                                         ToolTip.Tip="Start the game without any mods">
+                                <StackPanel>
+                                    <TextBlock Text="No mods" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Vanilla game" FontSize="11" Opacity="0.8" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Classes="segment" GroupName="Loader" MinWidth="120"
+                                         IsChecked="{Binding IsBepInExActive, Mode=OneWay}" IsEnabled="{Binding BepInExInstalled}"
+                                         Command="{Binding SwitchLoaderCommand}" CommandParameter="BepInEx">
+                                <StackPanel>
+                                    <TextBlock Text="BepInEx" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding BepInExVersionText}" FontSize="11" Opacity="0.8" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Classes="segment" GroupName="Loader" MinWidth="120"
+                                         IsChecked="{Binding IsMelonActive, Mode=OneWay}" IsEnabled="{Binding MelonInstalled}"
+                                         Command="{Binding SwitchLoaderCommand}" CommandParameter="MelonLoader">
+                                <StackPanel>
+                                    <TextBlock Text="MelonLoader" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding MelonVersionText}" FontSize="11" Opacity="0.8" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                        <Button Classes="small" Command="{Binding InstallLoaderCommand}" CommandParameter="BepInEx"
+                                ToolTip.Tip="Download the latest BepInEx 5 (x64) from GitHub">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Download" Width="14" Height="14" />
+                                <TextBlock Text="{Binding BepInExButtonText}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="small" Command="{Binding InstallLoaderCommand}" CommandParameter="MelonLoader"
+                                ToolTip.Tip="Download the latest MelonLoader (x64) from GitHub">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Download" Width="14" Height="14" />
+                                <TextBlock Text="{Binding MelonButtonText}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== Tabs ===================== -->
+        <TabControl x:Name="MainTabs" Grid.Row="4" Padding="0">
+
+            <!-- Installed -->
+            <TabItem AutomationProperties.Name="Installed">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="Bookshelf" />
+                        <TextBlock Text="Installed" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="0,12,0,0">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                        <TextBox x:Name="ModSearchBox" Width="280" Text="{Binding ModSearch}" PlaceholderText="Search installed mods  (Ctrl+F)">
+                            <TextBox.InnerLeftContent>
+                                <mi:MaterialIcon Kind="Magnify" Margin="10,0,0,0" Foreground="{DynamicResource TextSecondary}" />
+                            </TextBox.InnerLeftContent>
+                        </TextBox>
+                        <ComboBox Grid.Column="1" Width="170" Margin="8,0,0,0" ItemsSource="{Binding ModFilters}" SelectedItem="{Binding ModFilter}"
+                                  ToolTip.Tip="Show only some mods" VerticalAlignment="Stretch" />
+                        <TextBlock Grid.Column="2" Classes="caption" Text="{Binding ModCountText}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6">
+                            <Button Command="{Binding OpenModsFolderCommand}" ToolTip.Tip="Open the active loader's mods folder">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <mi:MaterialIcon Kind="FolderOpenOutline" />
+                                    <TextBlock Text="Open folder" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="accent" Command="{Binding InstallFileCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <mi:MaterialIcon Kind="Plus" />
+                                    <TextBlock Text="Install from file" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Classes="caption" TextWrapping="Wrap" Margin="2,10,0,8"
+                               Text="Tick a mod to load it. Mods for the loader that's off are dimmed. Drop .zip, .7z, .rar or .dll files anywhere to install." />
+
+                    <!-- DLLs BepInEx can't see -->
+                    <Border Grid.Row="2" Classes="banner" Padding="12,8" Margin="0,0,0,8" Background="{DynamicResource CautionBackground}"
+                            IsVisible="{Binding HasStrays}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <mi:MaterialIcon Kind="AlertOutline" Foreground="{DynamicResource CautionIcon}" />
+                            <TextBlock Text="{Binding StraysHint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="3" Classes="card" Padding="0">
+                        <Grid RowDefinitions="Auto,*">
+                            <!-- column headers; the same widths as each row below -->
+                            <Grid ColumnDefinitions="64,2.2*,80,1.1*,1*,1.7*,220" Margin="0,10,0,8">
+                                <TextBlock Grid.Column="0" Classes="caption" Text="Load" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Classes="caption" Text="Name" />
+                                <TextBlock Grid.Column="2" Classes="caption" Text="Version" />
+                                <TextBlock Grid.Column="3" Classes="caption" Text="Loader" />
+                                <TextBlock Grid.Column="4" Classes="caption" Text="Source" />
+                                <TextBlock Grid.Column="5" Classes="caption" Text="Location" />
+                            </Grid>
+                            <Border Grid.Row="0" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource Divider}" />
+
+                            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" ZIndex="1"
+                                        IsVisible="{Binding NoModsMatch}">
+                                <mi:MaterialIcon Kind="Magnify" Width="28" Height="28" Foreground="{DynamicResource TextTertiary}" />
+                                <TextBlock Classes="hint" Text="No installed mods match." HorizontalAlignment="Center" />
+                                <Button Content="Clear search and filter" Command="{Binding ClearModFiltersCommand}" HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding ModsShown}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="local:ModRow">
+                                            <Border Classes="row" Opacity="{Binding RowOpacity}">
+                                                <Grid ColumnDefinitions="64,2.2*,80,1.1*,1*,1.7*,220">
+                                                    <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="0" Padding="0"
+                                                              IsChecked="{Binding IsEnabled}" IsEnabled="{Binding CanToggle}"
+                                                              Command="{Binding $parent[Window].((local:MainViewModel)DataContext).ToggleCommand}"
+                                                              CommandParameter="{Binding}" />
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Classes="caption" FontSize="11" Text="{Binding Guids}" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Classes="hint" Text="{Binding Version}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="3" Classes="hint" Text="{Binding LoaderText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="4" Classes="hint" Text="{Binding KindText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="5" Classes="hint" Text="{Binding Location}" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding Location}" />
+                                                    <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,0,12,0">
+                                                        <Button Classes="small" Content="Move into plugins" IsVisible="{Binding IsStray}"
+                                                                Command="{Binding $parent[Window].((local:MainViewModel)DataContext).AdoptCommand}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Classes="small" ToolTip.Tip="Remove (files go to the trash folder)"
+                                                                Command="{Binding $parent[Window].((local:MainViewModel)DataContext).UninstallCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <mi:MaterialIcon Kind="DeleteOutline" Width="14" Height="14" />
+                                                                <TextBlock Text="Remove" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Community -->
+            <TabItem AutomationProperties.Name="Browse community mods">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="StorefrontOutline" />
+                        <TextBlock Text="Browse community mods" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid RowDefinitions="Auto,Auto,*" Margin="0,12,0,0">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+                        <TextBox x:Name="CatalogSearchBox" Width="280" Text="{Binding CatalogSearch}" PlaceholderText="Search community mods  (Ctrl+F)">
+                            <TextBox.InnerLeftContent>
+                                <mi:MaterialIcon Kind="Magnify" Margin="10,0,0,0" Foreground="{DynamicResource TextSecondary}" />
+                            </TextBox.InnerLeftContent>
+                        </TextBox>
+                        <ComboBox Grid.Column="1" Width="160" Margin="8,0,0,0" ItemsSource="{Binding CatalogFilters}" SelectedItem="{Binding CatalogFilter}"
+                                  ToolTip.Tip="Show only some mods" VerticalAlignment="Stretch" />
+                        <ComboBox Grid.Column="2" Width="140" Margin="8,0,0,0" ItemsSource="{Binding CatalogTags}" SelectedItem="{Binding CatalogTag}"
+                                  ToolTip.Tip="Show mods with this tag" VerticalAlignment="Stretch" />
+                        <TextBlock Grid.Column="3" Classes="caption" Text="{Binding CatalogCountText}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                        <Button Grid.Column="5" Command="{Binding CheckUpdatesCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="Sync" />
+                                <TextBlock Text="Check for updates" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Classes="caption" TextWrapping="Wrap" Margin="2,10,0,8"
+                               Text="GitHub mods install directly. Nexus Mods files download in your browser, then install automatically." />
+
+                    <Grid Grid.Row="2">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" ZIndex="1"
+                                    IsVisible="{Binding NoCatalogMatch}">
+                            <mi:MaterialIcon Kind="Magnify" Width="28" Height="28" Foreground="{DynamicResource TextTertiary}" />
+                            <TextBlock Classes="hint" Text="No community mods match." HorizontalAlignment="Center" />
+                            <Button Content="Clear search and filters" Command="{Binding ClearCatalogFiltersCommand}" HorizontalAlignment="Center" />
+                        </StackPanel>
+
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding CatalogShown}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="local:CatalogRow">
+                                        <Border Classes="card" Margin="0,0,4,8" Padding="16,12">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock TextWrapping="Wrap">
+                                                        <Run Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                                                        <Run Text="  by " Foreground="{DynamicResource TextSecondary}" />
+                                                        <Run Text="{Binding Author}" Foreground="{DynamicResource TextSecondary}" />
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                                                    <WrapPanel>
+                                                        <!-- install state: green when installed, amber when an update is waiting -->
+                                                        <Border Classes="badge" Classes.ok="{Binding IsUpToDate}" Classes.update="{Binding HasUpdate}">
+                                                            <TextBlock Text="{Binding BadgeText}" FontSize="11" />
+                                                        </Border>
+                                                        <Border Classes="badge">
+                                                            <TextBlock Classes="badge" Text="{Binding LoaderText}" />
+                                                        </Border>
+                                                        <Border Classes="badge">
+                                                            <TextBlock Classes="badge" Text="{Binding SourceText}" />
+                                                        </Border>
+                                                        <ItemsControl ItemsSource="{Binding TagList}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="x:String">
+                                                                    <Border CornerRadius="10" Padding="8,1" Margin="0,0,6,4" Background="{DynamicResource TagBackground}">
+                                                                        <TextBlock Text="{Binding}" FontSize="11" Foreground="White" />
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Button ToolTip.Tip="Open the mod's page"
+                                                            Command="{Binding $parent[Window].((local:MainViewModel)DataContext).OpenHomepageCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <mi:MaterialIcon Kind="Web" />
+                                                            <TextBlock Text="Website" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Classes="accent" MinWidth="110"
+                                                            Command="{Binding $parent[Window].((local:MainViewModel)DataContext).InstallCatalogCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <mi:MaterialIcon Kind="Download" />
+                                                            <TextBlock Text="{Binding ActionText}" FontWeight="SemiBold" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- Settings -->
+            <TabItem AutomationProperties.Name="Settings">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="CogOutline" />
+                        <TextBlock Text="Settings" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,12,4,0" MaxWidth="820" HorizontalAlignment="Left" Spacing="10">
+
+                        <Border Classes="card">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <mi:MaterialIcon Kind="PaletteOutline" />
+                                    <TextBlock Classes="section" Text="Appearance" />
+                                </StackPanel>
+                                <TextBlock Classes="hint" Text="Choose light or dark mode, or follow your system's setting." Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Spacing="20">
+                                    <RadioButton GroupName="Theme" Content="Use system setting" IsChecked="{Binding IsThemeSystem}" />
+                                    <RadioButton GroupName="Theme" Content="Light" IsChecked="{Binding IsThemeLight}" />
+                                    <RadioButton GroupName="Theme" Content="Dark" IsChecked="{Binding IsThemeDark}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <mi:MaterialIcon Kind="FormatListBulleted" />
+                                    <TextBlock Classes="section" Text="Community mod list" />
+                                </StackPanel>
+                                <TextBlock Classes="hint" Margin="0,0,0,4"
+                                           Text="Raw URL of a mods.json file. Clear it and click Load to go back to the default list (github.com/Dullfin/gtw-mod-index)." />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Text="{Binding IndexUrl}" />
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Content="Load" Command="{Binding SaveIndexUrlCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <mi:MaterialIcon Kind="KeyOutline" />
+                                    <TextBlock Classes="section" Text="Nexus Mods" />
+                                </StackPanel>
+                                <TextBlock Classes="hint" Margin="0,0,0,4"
+                                           Text="Optional. With a personal API key the app can check Nexus versions, and Premium accounts download straight into the game. Without one, Nexus mods download in your browser and install from your Downloads folder." />
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                    <TextBox x:Name="NexusKeyBox" PasswordChar="•" PlaceholderText="Paste your API key" />
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Content="Get a key" Command="{Binding OpenNexusKeysPageCommand}" />
+                                    <Button Grid.Column="2" Margin="6,0,0,0" Classes="accent" Content="Save key" Click="SaveNexusKey_Click" />
+                                    <Button Grid.Column="3" Margin="6,0,0,0" Content="Remove" Command="{Binding RemoveNexusKeyCommand}" />
+                                </Grid>
+                                <TextBlock Classes="hint" Text="{Binding NexusStatus}" Margin="0,4,0,0" />
+                                <TextBlock Classes="caption" TextWrapping="Wrap">
+                                    <Run Text="Downloads folder watched for Nexus files: " />
+                                    <Run Text="{Binding DownloadsFolder, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <mi:MaterialIcon Kind="InformationOutline" />
+                                    <TextBlock Classes="section" Text="About" />
+                                </StackPanel>
+                                <TextBlock Classes="hint" Text="{Binding CurrentVersionText}" />
+                                <TextBlock Classes="hint" Text="{Binding AppUpdateStatus}" Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Command="{Binding CheckAppUpdateCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <mi:MaterialIcon Kind="Sync" />
+                                            <TextBlock Text="Check for updates" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding OpenReleasesPageCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <mi:MaterialIcon Kind="Web" />
+                                            <TextBlock Text="All releases" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- ===================== Waiting for a browser download ===================== -->
+        <Border Grid.Row="5" Classes="banner" Margin="0,12,0,0" Background="{DynamicResource CautionBackground}"
+                IsVisible="{Binding IsWaitingForDownload}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <mi:MaterialIcon Kind="Download" Width="20" Height="20" Margin="0,0,12,0" Foreground="{DynamicResource CautionIcon}" />
+                <TextBlock Grid.Column="1" Text="{Binding WaitingText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Content="Choose file instead" Command="{Binding PickDownloadedFileCommand}" />
+                    <Button Content="Cancel" Command="{Binding CancelWaitCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ===================== Status bar ===================== -->
+        <Grid Grid.Row="6" ColumnDefinitions="Auto,*,Auto" Margin="2,10,0,0">
+            <Border CornerRadius="4" Padding="8,2" Margin="0,0,10,0" VerticalAlignment="Center"
+                    Background="{DynamicResource SubtleFill}" ToolTip.Tip="Active mod loader">
+                <TextBlock Classes="caption" Text="{Binding ActiveLoaderText}" />
+            </Border>
+            <TextBlock Grid.Column="1" Classes="caption" Text="{Binding Status}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <ProgressBar Grid.Column="2" Width="180" Height="4" MinHeight="4" Value="{Binding Progress}" Maximum="100"
+                         IsIndeterminate="{Binding ProgressIndeterminate}" IsVisible="{Binding IsBusy}" />
+        </Grid>
+    </Grid>
+</Window>

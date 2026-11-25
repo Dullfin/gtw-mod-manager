@@ -2,14 +2,15 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GTWModManager.Core\GTWModManager.Core.csproj" />
-    <!-- Copied next to the test exe as FakeMelonMod.dll; used as a MelonLoader mod fixture. -->
+    <!-- Copied next to the test exe and used as mod fixtures: a BepInEx plugin and a MelonLoader mod. -->
+    <ProjectReference Include="..\FakeBepInPlugin\FakeBepInPlugin.csproj" />
     <ProjectReference Include="..\FakeMelonMod\FakeMelonMod.csproj" />
   </ItemGroup>
 

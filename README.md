@@ -1,8 +1,10 @@
 # GTW Mod Manager
 
-A Windows mod manager for **Get To Work** (Unity Mono). Supports both **BepInEx 5** and **MelonLoader**.
+A mod manager for **Get To Work** (Unity Mono), for **Windows** and **Linux** (including Steam Deck). Supports both **BepInEx 5** and **MelonLoader**.
 
-**[Download the latest release](https://github.com/Dullfin/gtw-mod-manager/releases/latest)**: grab `GTWModManager-<version>-win-x64.exe` and run it. No installer, and it updates itself.
+**[Download the latest release](https://github.com/Dullfin/gtw-mod-manager/releases/latest)**. No installer, and it updates itself.
+- **Windows:** grab `GTWModManager-<version>-win-x64.exe` and run it.
+- **Linux:** grab `GTWModManager-<version>-linux-x64`, then see [Linux](#linux) below.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/installed-dark.png">
@@ -50,6 +52,38 @@ Screenshots follow your GitHub theme; the app follows your Windows one.
 
 The manager records what it installed in `GTWModManager\installed.json` in the game folder. Version 0.1's `BepInEx\modmanager\` folder is moved there automatically.
 
+## Linux
+
+Get To Work has no native Linux version; it runs through Steam's Proton. The Linux app manages the same game folder the same way, with two Linux-specific steps:
+
+1. **Make the download runnable**, once: right-click it → Properties → Permissions → *Allow executing as program*, or in a terminal:
+
+   ```sh
+   chmod +x GTWModManager-*-linux-x64
+   ```
+
+2. **Add the Steam launch option.** Under Proton, Wine only loads a mod loader's DLL from the game folder when told to. In Steam, right-click Get To Work → Properties → General → Launch Options, and paste:
+
+   ```
+   WINEDLLOVERRIDES="winhttp,version=n,b" %command%
+   ```
+
+   This allows both BepInEx (`winhttp`) and MelonLoader (`version`); the app's loader picker decides which one actually runs. The app reads Steam's settings and shows a banner with a **Copy** button until the option is set.
+
+Also on Linux:
+- The app finds Steam in `~/.steam/steam`, `~/.local/share/Steam`, Flatpak Steam and Snap Steam, plus any extra Steam library folders.
+- Nexus downloads are picked up from your Downloads folder as set in `~/.config/user-dirs.dirs`.
+- `.7z` and `.rar` mods need `bsdtar` (libarchive) or 7-Zip (`7z`/`7zz`) installed. `.zip` and `.dll` need nothing.
+- The Nexus API key is stored in `~/.config/GTWModManager/settings.json`, readable only by you.
+
+## Two apps, one core
+
+- **Windows app** (`src/GTWModManager`): WPF with the Windows 11 Fluent look.
+- **Linux app** (`src/GTWModManager.Linux`): Avalonia, with the same layout and features. It also runs on Windows, which is handy for trying changes without a Linux machine.
+- **Shared core** (`src/GTWModManager.Core`): everything that touches the game folder, mods, loaders, Steam, GitHub and Nexus, so behaviour is the same on both.
+
+A new feature in the window needs doing in both apps. Both share one version number, in `src/Directory.Build.props`.
+
 ## Build and run
 
 ```powershell
@@ -60,12 +94,18 @@ dotnet build GTWModManager.sln -c Release
 .\src\GTWModManager\bin\Release\net9.0-windows\GTWModManager.exe
 ```
 
+The Linux app, on Linux (or on Windows to try it out):
+
+```sh
+dotnet run --project src/GTWModManager.Linux
+```
+
 ## Releasing
 
-The built-in updater looks for exact file names, so always build releases with the script:
+Each app's built-in updater looks for exact file names, so always build releases with the script (it builds the Linux app from Windows too):
 
-1. Bump `<Version>` in `src/GTWModManager/GTWModManager.csproj` and commit.
-2. Build and publish (tags `v<version>`, pushes the tag, creates the GitHub release with both exes and `SHA256SUMS.txt`):
+1. Bump `<Version>` in `src/Directory.Build.props` and commit. Both apps share it.
+2. Build and publish (tags `v<version>`, pushes the tag, creates the GitHub release with the two Windows exes, the Linux app and `SHA256SUMS.txt`):
 
 ```powershell
 .\tools\build-release.ps1 -Publish -NotesFile notes.md
@@ -75,11 +115,13 @@ Without `-Publish` it only builds into `publish\release`. Everyone on an older v
 
 To test an update locally, serve a fake `latest.json` (same shape as GitHub's release API) and start the app with `GTWMM_UPDATE_URL` pointing at it.
 
-Smoke tests (use a throwaway folder; `--online` also downloads the GitHub mods and MelonLoader):
+Smoke tests run on Windows and Linux with built-in stand-in mods. Use a throwaway folder; optionally add a real game folder to also scan it read-only, and `--online` to also download the GitHub mods and MelonLoader:
 
 ```powershell
 dotnet run --project tests/GTWModManager.SmokeTest -- "$env:TEMP\gtw-fake" "C:\Program Files (x86)\Steam\steamapps\common\Get To Work" --online
 ```
+
+GitHub Actions runs them on Windows and Linux on every push (`.github/workflows/ci.yml`).
 
 ## The community mod list
 
@@ -96,8 +138,11 @@ A personal API key is fine for your own use. If you distribute the app widely, N
 | Path | What |
 |---|---|
 | `src/GTWModManager.Core` | Game and loader detection, loader switching, archive handling, install/uninstall, GitHub and Nexus clients |
-| `src/GTWModManager` | WPF app |
-| `tests/GTWModManager.SmokeTest` | End-to-end checks against a fake game folder |
-| `tests/FakeMelonMod` | A stand-in MelonLoader mod used by the tests |
+| `src/GTWModManager` | Windows app (WPF) |
+| `src/GTWModManager.Linux` | Linux app (Avalonia) |
+| `src/Directory.Build.props` | The version number both apps share |
+| `tests/GTWModManager.SmokeTest` | End-to-end checks against a fake game folder; runs on Windows and Linux |
+| `tests/FakeBepInPlugin`, `tests/FakeMelonMod` | Stand-in mods used by the tests |
+| `.github/workflows/ci.yml` | Builds and tests both apps on every push; on Linux it also starts the app on a virtual display |
 | `index/mods.json` | Built-in fallback copy of the community list |
 | `tools/build-release.ps1` | Builds the release exes with the names the updater expects, and publishes the release |

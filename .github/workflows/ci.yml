@@ -1,0 +1,53 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Smoke tests
+        run: dotnet run -c Release --project tests/GTWModManager.SmokeTest -- "$RUNNER_TEMP/gtw-fake"
+
+      - name: Publish the single-file Linux app
+        run: >
+          dotnet publish src/GTWModManager.Linux -c Release -r linux-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none -o publish/linux
+
+      - name: The app starts and stays open
+        run: |
+          sudo apt-get install -y -qq xvfb >/dev/null
+          chmod +x publish/linux/GTWModManager
+          # Run it on a virtual display for 20 seconds. Exit code 124 means it was still running when stopped.
+          set +e
+          timeout 20 xvfb-run -a publish/linux/GTWModManager
+          code=$?
+          set -e
+          echo "exit code: $code"
+          test "$code" -eq 124
+
+  windows:
+    name: Windows app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build everything
+        run: dotnet build GTWModManager.sln -c Release
+
+      - name: Smoke tests
+        run: dotnet run -c Release --no-build --project tests/GTWModManager.SmokeTest -- "$env:RUNNER_TEMP\gtw-fake"
